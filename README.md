@@ -84,7 +84,7 @@ It **never sends pump or fan speed commands**, so it runs alongside [Fan Control
 - **Web console** at `http://127.0.0.1:8765` (localhost only); changes apply about 0.3 s after editing, with a live preview. The UI switches between Chinese and English, and every setting has a one-click reset to default.
 - Reconnects after unplugging or sleep; each LCD frame is sent twice and confirmed to avoid ghosting.
 
-See [FEATURES.md](FEATURES.md) (Chinese) for the full comparison with CAM.
+See [FEATURES.md](FEATURES.md) for the full comparison with CAM.
 
 ## Requirements
 - Windows 10/11, Python 3.12.
