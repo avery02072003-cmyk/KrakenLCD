@@ -95,19 +95,86 @@ def pos(i):
 
 
 # ---------------- 音訊（Audio Bass／Audio Level 用）----------------
+AUDIO_DEFAULTS = {             # 音訊燈效的擷取設定（config.json 的 rgb 區段，網頁控制台可調）
+    "audio_device": "",        # 擷取哪個播放裝置的聲音；空字串＝跟隨 Windows 預設播放裝置
+    "audio_auto_gain": True,   # 自動增益：依近期最大音量自動調整，小聲的歌也會亮滿
+    "audio_sensitivity": 100,  # 靈敏度 %：最後再乘上的倍率（自動或手動增益都適用）
+    "audio_gate": 2,           # 雜訊門檻 %（滿刻度振幅的百分比）：低於門檻一律當成安靜
+}
+AUDIO_STATUS = {"device": "", "ok": False, "level": 0.0, "bass": 0.0, "raw_level": 0.0, "raw_bass": 0.0}
+
+
+def list_audio_devices():
+    """列出可擷取的播放裝置（WASAPI loopback）名稱與目前的 Windows 預設裝置；沒有 pyaudiowpatch 時回傳空清單。"""
+    try:
+        import pyaudiowpatch as pa
+    except ImportError:
+        return {"devices": [], "default": ""}
+    p = pa.PyAudio()
+    try:
+        names = [_loop_name(d["name"]) for d in p.get_loopback_device_info_generator()]
+        try:
+            default = _loop_name(p.get_default_wasapi_loopback()["name"])
+        except Exception:
+            default = ""
+        return {"devices": names, "default": default}
+    finally:
+        p.terminate()
+
+
+def _loop_name(name):
+    """裝置名稱去掉 pyaudiowpatch 加的「 [Loopback]」字尾，給使用者看也拿來比對設定。"""
+    return name.replace(" [Loopback]", "")
+
+
 class AudioMeter:
     """
     擷取系統正在播放的聲音（WASAPI loopback，需要 pyaudiowpatch），在背景執行緒計算：
     level：整體音量 0~1；bass：低音（150 Hz 以下）強度 0~1。
     沒有安裝 pyaudiowpatch 時兩者固定為 0，並只記錄一次警告。
-    """
 
-    def __init__(self):
+    2026-11-15 修正「沒播聲音燈卻亂跳、登入後音訊燈效失控」：
+    - 舊的自動增益記住「近期最大值」但沒有下限，安靜時最大值一路衰減到底噪（約 1e-10），
+      底噪就被放大成全亮。現在最大值有下限 PEAK_FLOOR，另有雜訊門檻（audio_gate）。
+    - 數值改用與取樣率無關的振幅（0~1，1＝滿刻度），96 kHz 裝置用較大的分析區塊維持低頻解析度。
+    - 不用阻塞式讀取：先查可讀量，沒資料時數值平滑淡出，不會卡在最後一刻。
+    - 跟隨 Windows 預設裝置時，安靜一陣子就重新初始化、重抓預設裝置（登入時裝置可能還沒就緒，
+      或預設裝置之後才換）；超過 NO_DATA_REOPEN_S 秒完全沒資料也重開。
+      PortAudio 只在完全重新初始化時才重新列舉裝置，所以要整個 terminate 再建立。
+    - 任何例外（裝置拔除等）都在 RETRY_S 秒後重試，執行緒不會結束。
+    """
+    NO_DATA_REOPEN_S = 5.0     # 這麼久完全沒資料就重開擷取
+    QUIET_RECHECK_S = 15.0     # 跟隨預設裝置時，安靜狀態下每隔這麼久重抓一次預設裝置
+    RETRY_S = 2.0              # 出錯後等多久重試
+    FADE_S = 0.25              # 沒資料時數值淡出的時間常數
+    PEAK_DECAY_S = 4.0         # 自動增益的最大值衰減時間常數
+    PEAK_FLOOR = 0.05          # 自動增益最大值的下限（振幅），防止底噪被放大
+    MANUAL_FULL = 0.5          # 手動增益時，振幅到這麼大算滿格（再乘靈敏度）
+
+    def __init__(self, cfg=None):
         self.level = 0.0
         self.bass = 0.0
         self._ok = False
         self._stop = False
+        self._reopen = False
+        self._peak_l, self._peak_b = self.PEAK_FLOOR, self.PEAK_FLOOR   # 重開擷取時保留
+        self.device = ""                             # 目前擷取的裝置名稱
+        self.configure(cfg or {})
         threading.Thread(target=self._run, daemon=True).start()
+
+    def configure(self, cfg):
+        """套用擷取設定（換效果或改參數時呼叫）；換了指定裝置就讓擷取執行緒重開。"""
+        get = lambda k: cfg.get(k, AUDIO_DEFAULTS[k])
+        want = str(get("audio_device") or "")
+        if want != getattr(self, "want_device", want):
+            self._reopen = True
+        self.want_device = want
+        self.auto_gain = bool(get("audio_auto_gain"))
+        self.sensitivity = max(0.0, float(get("audio_sensitivity"))) / 100.0
+        self.gate = max(0.0, float(get("audio_gate"))) / 100.0
+
+    def _publish(self):
+        AUDIO_STATUS.update(device=self.device, ok=self._ok, level=round(self.level, 3), bass=round(self.bass, 3))
 
     def _run(self):
         try:
@@ -116,28 +183,95 @@ class AudioMeter:
         except ImportError:
             _LOG.warning("未安裝 pyaudiowpatch，音訊燈效改顯示靜態顏色（pip install pyaudiowpatch）")
             return
+        fails = 0
+        while not self._stop:
+            try:
+                self._capture(np, pa)        # 正常情況會一直待在裡面；回傳表示要重開
+                fails = 0
+            except Exception as e:
+                self._ok = False
+                self._publish()
+                fails += 1
+                if fails <= 3 or fails % 30 == 0:          # 裝置長時間不在時避免洗版
+                    _LOG.warning("音訊擷取失敗（第 %d 次），%.0f 秒後重試：%s", fails, self.RETRY_S, e)
+                time.sleep(self.RETRY_S)
+        AUDIO_STATUS.update(ok=False, level=0.0, bass=0.0)
+
+    def _pick_device(self, p):
+        """依設定挑裝置：有指定且找得到就用它，否則用 Windows 預設播放裝置。"""
+        if self.want_device:
+            for d in p.get_loopback_device_info_generator():
+                if _loop_name(d["name"]) == self.want_device:
+                    return d, False
+            _LOG.warning("找不到指定的音訊裝置「%s」，改用 Windows 預設裝置", self.want_device)
+        return p.get_default_wasapi_loopback(), True
+
+    def _capture(self, np, pa):
+        """開啟裝置並持續分析；需要重開（換裝置、長時間沒資料、跟隨預設時定期重抓）就回傳。"""
+        p = pa.PyAudio()
+        st = None
         try:
-            p = pa.PyAudio()
-            dev = p.get_default_wasapi_loopback()
+            dev, follow = self._pick_device(p)
             rate, ch = int(dev["defaultSampleRate"]), max(1, dev["maxInputChannels"])
-            n = 1024
+            n = 1024 if rate <= 48000 else 2048            # 每格約 21 ms；96 kHz 用 2048 維持低頻解析度
             st = p.open(format=pa.paFloat32, channels=ch, rate=rate, input=True,
                         input_device_index=dev["index"], frames_per_buffer=n)
+            name = _loop_name(dev["name"])
+            if name != self.device:
+                _LOG.info("音訊擷取裝置：%s（%d Hz、%d 聲道）", name, rate, ch)
+            self.device = name
             self._ok = True
-            peak_l, peak_b = 1e-3, 1e-3      # 自動增益：記住近期最大值
+            self._reopen = False
             freqs = np.fft.rfftfreq(n, 1.0 / rate)
-            low = freqs < 150
-            while not self._stop:
-                x = np.frombuffer(st.read(n, exception_on_overflow=False), np.float32)
-                x = x.reshape(-1, ch).mean(axis=1)
-                lv = float(np.sqrt(np.mean(x * x)))
-                bs = float(np.abs(np.fft.rfft(x * np.hanning(len(x))))[low[:len(x) // 2 + 1]].mean())
-                peak_l = max(lv, peak_l * 0.995)
-                peak_b = max(bs, peak_b * 0.995)
-                self.level = min(1.0, lv / peak_l)
-                self.bass = min(1.0, bs / peak_b)
-        except Exception as e:
-            _LOG.warning("音訊擷取失敗：%s", e)
+            low = (freqs > 0) & (freqs < 150)               # 低音頻段（不含直流）
+            if not low.any():
+                low[1] = True
+            win = np.hanning(n)
+            norm = 2.0 / win.sum()                          # FFT 幅度換成正弦波振幅（0~1）
+            t_open = last_data = last_tick = last_loud = time.time()
+            while not self._stop and not self._reopen:
+                now = time.time()
+                if st.get_read_available() >= n:
+                    x = np.frombuffer(st.read(n, exception_on_overflow=False), np.float32)
+                    x = x.reshape(-1, ch).mean(axis=1)
+                    lv = float(np.sqrt(2.0 * np.mean(x * x)))                    # 整體振幅
+                    bs = float((np.abs(np.fft.rfft(x * win)) * norm)[low].max())  # 低音振幅
+                    AUDIO_STATUS.update(raw_level=round(lv, 5), raw_bass=round(bs, 5))
+                    lv = lv if lv >= self.gate else 0.0              # 雜訊門檻
+                    bs = bs if bs >= self.gate else 0.0
+                    if lv > 0:
+                        last_loud = now
+                    if self.auto_gain:
+                        k = math.exp(-(now - last_tick) / self.PEAK_DECAY_S)
+                        self._peak_l = max(lv, self._peak_l * k, self.PEAK_FLOOR)
+                        self._peak_b = max(bs, self._peak_b * k, self.PEAK_FLOOR)
+                        lvn, bsn = lv / self._peak_l, bs / self._peak_b
+                    else:
+                        lvn, bsn = lv / self.MANUAL_FULL, bs / self.MANUAL_FULL
+                    self.level = min(1.0, lvn * self.sensitivity)
+                    self.bass = min(1.0, bsn * self.sensitivity)
+                    last_data = now
+                else:
+                    # 沒有新資料：數值依時間常數淡出，不卡在最後一刻
+                    k = math.exp(-(now - last_tick) / self.FADE_S)
+                    self.level *= k
+                    self.bass *= k
+                    if now - last_data > self.NO_DATA_REOPEN_S:
+                        return
+                    time.sleep(0.01)
+                last_tick = now
+                self._publish()
+                # 跟隨預設裝置：安靜超過 3 秒且距開啟已久，就重開一次重抓預設裝置（安靜時重開不會被察覺）
+                if follow and now - last_loud > 3.0 and now - t_open > self.QUIET_RECHECK_S:
+                    return
+        finally:
+            if st is not None:
+                try:
+                    st.stop_stream()
+                    st.close()
+                except Exception:
+                    pass
+            p.terminate()
 
     def close(self):
         self._stop = True
@@ -160,8 +294,9 @@ class RgbEngine:
         if eff.startswith("audio_"):
             if prev is not None and prev.audio is not None:
                 self.audio, prev.audio = prev.audio, None     # 沿用已開好的音訊擷取（重開要花時間）
+                self.audio.configure(self.cfg)                # 但套用新的裝置／增益設定
             else:
-                self.audio = AudioMeter()
+                self.audio = AudioMeter(self.cfg)
         else:
             self.audio = None
         self.last_frame = None

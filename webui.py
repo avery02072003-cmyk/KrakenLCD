@@ -9,6 +9,8 @@ API：
   POST /api/config       寫 config.json（常駐程式偵測到檔案變更會立即套用）
   GET  /api/meta         RGB 效果預設值、讀值清單等（給網頁建表單用）
   GET  /api/state        即時狀態：液溫／轉速、各讀值、目前送出的 16 顆 LED 顏色
+  GET  /api/audio_devices 音訊燈效可擷取的播放裝置清單與 Windows 預設裝置
+  POST /api/restart      重新啟動常駐程式（關閉後自己再開新程序）
   POST /api/preview      依送來的畫面設定回傳預覽圖（PNG，base64）
   POST /api/upload       上傳圖片／GIF，存到 media/ 並回傳路徑
 """
@@ -38,6 +40,7 @@ class SharedState:
         self.mode = None
         self.last_ui = 0.0          # 最近一次網頁請求時間（有人在看時才持續讀液溫）
         self.error = None
+        self.on_restart = None      # 常駐程式設定：網頁按「重新啟動」時呼叫
 
     def snapshot(self):
         with self.lock:
@@ -94,7 +97,12 @@ def _make_handler(cfg_path, state, hub, preview_fn, meta):
             if path == "/api/state":
                 snap = state.snapshot()
                 snap["values"] = hub.snapshot()
+                import rgb                                  # 音訊燈效的即時音量（控制台音量表用）
+                snap["audio"] = dict(rgb.AUDIO_STATUS)
                 return self._send(200, snap)
+            if path == "/api/audio_devices":
+                import rgb                                  # 可擷取的播放裝置清單＋目前 Windows 預設裝置
+                return self._send(200, rgb.list_audio_devices())
             self._send(404, {"error": "not found"})
 
         # ---- POST ----
@@ -112,6 +120,11 @@ def _make_handler(cfg_path, state, hub, preview_fn, meta):
                     with open(tmp, "w", encoding="utf-8") as f:
                         json.dump(cfg, f, ensure_ascii=False, indent=2)
                     os.replace(tmp, cfg_path)         # 原子替換，常駐程式不會讀到寫一半的檔案
+                    return self._send(200, {"ok": True})
+                if path == "/api/restart":
+                    if not state.on_restart:
+                        return self._send(503, {"error": "restart unavailable"})
+                    state.on_restart()                # 主迴圈收尾後由常駐程式自己開新程序
                     return self._send(200, {"ok": True})
                 if path == "/api/preview":
                     req = json.loads(self._body().decode("utf-8"))

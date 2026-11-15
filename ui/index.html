@@ -78,6 +78,9 @@ button.rst.same{opacity:.3}
 /* 漸層色標 */
 .stops{display:flex;flex-direction:column;gap:6px}
 .gbar{height:10px;border-radius:5px;border:1px solid var(--line)}
+/* 音訊燈效的即時音量表 */
+.abar{flex:1;height:8px;border-radius:4px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+.abar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .15s}
 /* LED 模擬 */
 .fans{display:flex;gap:26px;justify-content:center}
 canvas.fan{width:130px;height:130px}
@@ -92,6 +95,7 @@ canvas.fan{width:130px;height:130px}
   <h1><span>KRAKEN</span> 控制台</h1>
   <div class="chips" id="chips"></div>
   <div class="conn"><span class="dot" id="dot"></span><span id="connText">連線中…</span></div>
+  <button class="btn" id="restartBtn" title="重新啟動常駐程式（燈光或音訊異常時用）">↻ 重新啟動</button>
   <button class="btn" id="langBtn" title="Language / 語言"></button>
 </header>
 
@@ -208,11 +212,24 @@ const I18N = {
   "泵":"Pump", "風扇":"Fan", "裝置錯誤：重新連線中":"Device error: reconnecting",
   "已連線，設定即時套用":"Connected; changes apply immediately", "常駐程式未執行":"Background program not running",
   "已儲存並套用":"Saved and applied", "儲存失敗":"Save failed",
+  // 重新啟動
+  "↻ 重新啟動":"↻ Restart", "重新啟動常駐程式（燈光或音訊異常時用）":"Restart the background program (use when lighting or audio misbehaves)",
+  "要重新啟動常駐程式嗎？約 5 秒後恢復。":"Restart the background program? It will be back in about 5 seconds.",
+  "正在重新啟動…":"Restarting…", "重新啟動失敗":"Restart failed",
+  // 音訊擷取
+  "音訊擷取":"Audio capture", "擷取裝置":"Capture device", "跟隨 Windows 預設":"Follow Windows default",
+  "自動增益（依近期最大音量自動調整）":"Auto gain (adapts to recent peak volume)", "靈敏度":"Sensitivity",
+  "雜訊門檻":"Noise gate", "音量":"Level", "低音":"Bass", "尚未擷取聲音":"Not capturing audio",
+  "沒播聲音時音量表應該是空的；有底噪亂跳就調高雜訊門檻，太暗就調高靈敏度或開自動增益。":
+    "With nothing playing the meters should stay empty. If background noise makes them jump, raise the noise gate; if the lights are too dim, raise the sensitivity or turn on auto gain.",
 };
 // 含變數的字串：依格式換句
 const I18N_PATTERNS = [
   [/^還原預設：([\s\S]*)$/, x => "Reset to default: " + trCore(x)],
   [/^↺ (.+)$/, x => "↺ " + trCore(x)],
+  [/^跟隨 Windows 預設（目前：(.+)）$/, x => "Follow Windows default (current: " + x + ")"],
+  [/^(.+)（目前找不到）$/, x => x + " (not found)"],
+  [/^擷取中：(.+)$/, x => "Capturing: " + x],
   [/^已上傳 (.+)$/, x => "Uploaded " + x],
   [/^([\d.]+) 秒$/, x => x + " s"],
   [/^(\d+) 顆$/, x => x + (x==="1" ? " LED" : " LEDs")],
@@ -285,7 +302,7 @@ const EFFECT_PARAMS = {
   fixed:["color1","leds"], spectrum_wave:["speed","direction"], breathing:["colorsN","speed"],
   fading:["colorsN","speed"], covering_marquee:["colorsN","speed","direction"],
   temperature_monitor:["temp"], marquee:["color1","speed","direction","led_size"], pulse:["colorsN","speed"],
-  super_rainbow:["speed","direction"], audio_bass:["color1"], audio_level:["gradient"],
+  super_rainbow:["speed","direction"], audio_bass:["color1","audio"], audio_level:["gradient","audio"],
   rainbow_flow:["speed","direction"], alternating:["colors2","speed","direction","led_size","moving"],
   tai_chi:["colors2","speed","direction"], starry_night:["color1","speed"], rainbow_pulse:["speed","direction"],
   candle:["color1"], wave:["color1","leds","speed","direction"], water_cooler:["speed"], loading:["color1","speed"]};
@@ -593,6 +610,36 @@ function ledsEditor(r){
       el("button",{class:"btn",onclick:()=>{ r.leds=Array(16).fill(toHex(r.colors[0])); changed(); renderAll(); }},"全部套用主色"),
       el("button",{class:"btn",onclick:()=>{ delete r.leds; r.per_led=false; changed(); renderAll(); }},"取消逐顆設定")));
 }
+// 音訊擷取設定：擷取哪個播放裝置、自動增益、靈敏度、雜訊門檻，加上即時音量表（poll() 更新）
+let audioDevs = null;          // /api/audio_devices 結果（null＝還沒抓、false＝抓取中）
+function audioEditor(r){
+  if (audioDevs === null){
+    audioDevs = false;
+    fetch("/api/audio_devices").then(x=>x.json()).then(j=>{ audioDevs=j; renderRGB(); })
+      .catch(()=>{ audioDevs={devices:[],default:""}; renderRGB(); });
+  }
+  const devs = audioDevs || {devices:[], default:""};
+  const opts = [["", "跟隨 Windows 預設" + (devs.default ? "（目前：" + devs.default + "）" : "")],
+                ...devs.devices.map(d => [d, d])];
+  if (r.audio_device && !devs.devices.includes(r.audio_device)) opts.push([r.audio_device, r.audio_device + "（目前找不到）"]);
+  const bar = id => el("div",{class:"abar"}, el("i",{id}));
+  return el("div",{class:"sub"}, el("div",{class:"title"},"音訊擷取"),
+    el("div",{class:"grid"},
+      R(selectField("擷取裝置", opts, ()=>r.audio_device||"", v=>r.audio_device=v), ""),
+      R(switchField("自動增益（依近期最大音量自動調整）", ()=>r.audio_auto_gain??true, v=>r.audio_auto_gain=v), true),
+      R(rangeField("靈敏度",10,300,10,()=>r.audio_sensitivity??100,v=>r.audio_sensitivity=v,v=>v+"%"), 100),
+      R(rangeField("雜訊門檻",0,20,1,()=>r.audio_gate??2,v=>r.audio_gate=v,v=>v+"%"), 2)),
+    el("div",{class:"row",style:"margin-top:10px;gap:10px"}, el("span",{class:"note",style:"min-width:56px"},"音量"), bar("aLvl")),
+    el("div",{class:"row",style:"margin-top:6px;gap:10px"}, el("span",{class:"note",style:"min-width:56px"},"低音"), bar("aBass")),
+    el("div",{class:"note",id:"aDev",style:"margin-top:6px"},""),
+    el("div",{class:"note"},"沒播聲音時音量表應該是空的；有底噪亂跳就調高雜訊門檻，太暗就調高靈敏度或開自動增益。"));
+}
+function renderAudioMeter(){
+  const a = live.audio, lv = document.getElementById("aLvl"); if (!a || !lv) return;
+  lv.style.width = Math.round((a.level||0)*100) + "%";
+  document.getElementById("aBass").style.width = Math.round((a.bass||0)*100) + "%";
+  document.getElementById("aDev").textContent = a.ok ? "擷取中：" + a.device : "尚未擷取聲音";
+}
 function renderRGB(){
   cfg.rgb = cfg.rgb || {enable:true,effect:"fixed",colors:["#FFFFFF"],brightness:100,speed:2,direction:"forward",fps:20};
   const r = cfg.rgb, ed = document.getElementById("rgbEditor");
@@ -637,6 +684,7 @@ function renderRGB(){
   }
   if (r.effect && r.effect.startsWith("audio_") && !meta.audio)
     parts.push(el("p",{class:"warn"},"未安裝 pyaudiowpatch，音訊效果目前顯示靜態顏色。"));
+  if (params.includes("audio") && meta.audio) parts.push(audioEditor(r));
   parts.push(el("div",{class:"sub"}, el("div",{class:"grid"},
     R(rangeField("更新頻率",1,30,1,()=>r.fps??20,v=>r.fps=v,v=>v+" 格/秒"), 20)),
     el("div",{class:"note"},"動態效果若出現跳格或卡住，把更新頻率調低。")));
@@ -679,7 +727,7 @@ async function poll(){
     live = await (await fetch("/api/state")).json();
     document.getElementById("dot").className = "dot "+(live.error?"bad":"ok");
     document.getElementById("connText").textContent = live.error ? "裝置錯誤：重新連線中" : "已連線，設定即時套用";
-    renderChips(); drawFans(); markCurrent();
+    renderChips(); drawFans(); markCurrent(); renderAudioMeter();
   }catch(e){
     document.getElementById("dot").className="dot bad";
     document.getElementById("connText").textContent="常駐程式未執行";
@@ -699,6 +747,14 @@ function changed(){
 function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1500); }
 function renderAll(){ renderLCD(); renderRGB(); }
+
+// ---------- 重新啟動常駐程式 ----------
+// 後端會乾淨關閉並自己開新程序（承襲系統管理員權限，不用再按 UAC）；期間狀態列會短暫顯示未執行
+document.getElementById("restartBtn").onclick = async () => {
+  if (!confirm(tr("要重新啟動常駐程式嗎？約 5 秒後恢復。"))) return;
+  try { await fetch("/api/restart",{method:"POST"}); toast("正在重新啟動…"); }
+  catch(e){ toast("重新啟動失敗"); }
+};
 
 // ---------- 啟動 ----------
 (async () => {

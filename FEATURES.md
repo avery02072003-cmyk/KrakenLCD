@@ -92,7 +92,7 @@
 
 說明：第 3–8 項的先後順序取自操作紀錄，可能有一兩項前後對調；名稱與選項已確認。
 
-狀態：✅ 標「韌體」的效果改用韌體動畫（模式值見 rgb.py 的 `HW_MODES`），動畫流暢；Temperature Monitor、Wave、Audio Bass／Audio Level 仍由電腦端逐格送（最多每秒 2.5 格，音訊效果會有延遲感）。Audio 效果需要 pyaudiowpatch 擷取系統聲音，未安裝時顯示靜態顏色。已知問題：Starry Night 韌體動畫底色偏白；Wave 的韌體模式值未知。
+狀態：✅ 標「韌體」的效果改用韌體動畫（模式值見 rgb.py 的 `HW_MODES`），動畫流暢；Temperature Monitor、Wave、Audio Bass／Audio Level 仍由電腦端逐格送（最多每秒 2.5 格，音訊效果會有延遲感）。Audio 效果需要 pyaudiowpatch 擷取系統聲音，未安裝時顯示靜態顏色；可指定擷取裝置（或跟隨 Windows 預設）、自動增益、靈敏度、雜訊門檻，控制台有即時音量表。已知問題：Starry Night 韌體動畫底色偏白；Wave 的韌體模式值未知。
 
 ## 6. 設定頁
 
@@ -208,7 +208,7 @@ Palette: 20 preset swatches plus custom HEX. CAM's font is **Gotham** (`GothamSS
 
 Note: the order of items 3–8 comes from a usage log and one or two may be swapped; names and options are confirmed.
 
-Status: ✅ "Firmware" effects use firmware animations (mode values in `HW_MODES` in rgb.py) and play smoothly. Temperature Monitor, Wave and Audio Bass / Audio Level are still streamed from the host (at most 2.5 frames per second, so audio effects feel laggy). Audio effects need pyaudiowpatch to capture system audio and show a static color without it. Known issues: the Starry Night firmware animation has a whitish background; the firmware mode value for Wave is unknown.
+Status: ✅ "Firmware" effects use firmware animations (mode values in `HW_MODES` in rgb.py) and play smoothly. Temperature Monitor, Wave and Audio Bass / Audio Level are still streamed from the host (at most 2.5 frames per second, so audio effects feel laggy). Audio effects need pyaudiowpatch to capture system audio and show a static color without it; the capture device (or the Windows default), auto gain, sensitivity and noise gate are adjustable, and the console shows live level meters. Known issues: the Starry Night firmware animation has a whitish background; the firmware mode value for Wave is unknown.
 
 ## 6. Settings
 

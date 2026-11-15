@@ -88,6 +88,38 @@ def _on_signal(*_):
     _stop = True
 
 
+_restart = False   # 網頁控制台按了「重新啟動」：主迴圈結束後自己再開一個新程序
+_MUTEX = None      # 單一實例 Mutex 的 handle（重新啟動前要先關掉，新程序才拿得到）
+
+
+def _request_restart():
+    """網頁控制台呼叫：結束主迴圈，結束後由 main() 重新啟動程序。"""
+    global _stop, _restart
+    _restart = True
+    _stop = True
+
+
+def _spawn_self(args):
+    """關掉 Mutex，以相同參數另開一個獨立的新程序（子程序承襲目前的系統管理員權限）。"""
+    import subprocess
+    if _MUTEX:
+        ctypes.windll.kernel32.CloseHandle(_MUTEX)
+    cmd = [sys.executable, os.path.abspath(__file__), "run", "--restarted"]
+    if args.mode:
+        cmd += ["--mode", args.mode]
+    if args.verbose:
+        cmd.append("-v")
+    try:
+        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP：與目前程序脫鉤，舊程序結束不影響新程序
+        subprocess.Popen(cmd, cwd=HERE, creationflags=0x00000008 | 0x00000200, close_fds=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _LOG.info("重新啟動：已開啟新的常駐程式")
+    except Exception as e:
+        # 備援：交給工作排程（以最高權限執行；目前這個程序即將結束，所以排程不會被「已在執行」擋下）
+        _LOG.warning("重新啟動失敗（%s），改用工作排程啟動", e)
+        subprocess.run(["schtasks", "/Run", "/TN", "KrakenLCD"], capture_output=True)
+
+
 # ---------- 讀值 ----------
 class SensorHub:
     """
@@ -118,6 +150,11 @@ class SensorHub:
     def snapshot(self):
         """所有讀值目前的數值（給網頁顯示）。"""
         return {k: list(self.read(k)) for k in self.KEYS}
+
+    def close(self):
+        """關閉底層感測器（LibreHardwareMonitor、NVML）。"""
+        if self.s:
+            self.s.close()
 
 
 def make_reading(rcfg, cfg, sensors, status):
@@ -339,6 +376,7 @@ def run_loop(args):
 
     sensors = SensorHub(Sensors())
     state = webui.SharedState()
+    state.on_restart = _request_restart         # 網頁控制台「重新啟動」按鈕
     webui.start(CONFIG_PATH, state, sensors, lambda f, c: preview_face(f, c, sensors, state.status),
                 {"effects": rgb.EFFECT_DEFAULTS, "keys": SensorHub.KEYS, "labels": LABELS,
                  "audio": _has_audio(), "admin": _is_admin()})
@@ -464,8 +502,11 @@ def run_loop(args):
                 # 正常結束：停掉 RGB 執行緒，切回韌體液溫畫面，避免停在最後一格
                 rgb_thr.alive = False
                 rgb_thr.join(1.0)
-                k.set_liquid_mode()
-                _LOG.info("已停止，切回液溫畫面")
+                if _restart:                        # 重新啟動：畫面留著，新程序馬上接手
+                    _LOG.info("重新啟動中…")
+                else:
+                    k.set_liquid_mode()
+                    _LOG.info("已停止，切回液溫畫面")
         except Exception as e:
             _LOG.warning("裝置錯誤，3 秒後重連：%s", e, exc_info=True)   # 附完整追蹤，方便找出錯位置
             with state.lock:
@@ -608,16 +649,29 @@ def main():
     ap.add_argument("value", nargs="?", help="brightness／orientation 的數值，或 rgb 的顏色")
     ap.add_argument("--mode", help="run 時臨時覆寫 config.json 的 mode")
     ap.add_argument("-v", "--verbose", action="store_true", help="輸出除錯訊息")
+    ap.add_argument("--restarted", action="store_true", help="（內部用）由網頁控制台重新啟動時帶入，會等舊程序結束")
     args = ap.parse_args()
     setup_logging(args.verbose)
 
     if args.command == "run":
-        if single_instance() is None:
+        global _MUTEX
+        _MUTEX = single_instance()
+        if _MUTEX is None and args.restarted:      # 重新啟動：舊程序可能還沒完全結束，最多等 15 秒
+            for _ in range(150):
+                time.sleep(0.1)
+                _MUTEX = single_instance()
+                if _MUTEX is not None:
+                    break
+        if _MUTEX is None:
             _LOG.error("已有另一個 kraken_lcd run 在執行，本次結束")
             sys.exit(1)
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
-        run_loop(args)
+        try:
+            run_loop(args)
+        finally:
+            if _restart:                            # 收尾就算出錯也要把新程序開起來
+                _spawn_self(args)
     elif args.command == "ui":
         cmd_ui()
     elif args.command == "liquid":
