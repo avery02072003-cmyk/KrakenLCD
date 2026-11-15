@@ -1,0 +1,10 @@
+# 執行產生的檔案
+kraken_lcd.log*
+preview.png
+__pycache__/
+fonts/
+media/
+compare/
+
+# 本機參考資料（含 CAM 設定備份與截圖，不公開）
+reference/

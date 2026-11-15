@@ -1,0 +1,223 @@
+{
+  "mode": "carousel",
+  "brightness": 100,
+  "orientation": null,
+  "rotation": -90,
+  "temperature_unit": "C",
+  "temp_min": 0,
+  "temp_max": 100,
+  "cpu_freq_max": 6,
+  "gpu_freq_max": 3,
+  "interval_s": 1,
+  "single": {
+    "style": "radial-fill-v2",
+    "reading": {
+      "key": "LiquidTemp",
+      "color": "#FFFFFF",
+      "text_color": "#FFFFFF"
+    },
+    "colors": [
+      "#6B00DE",
+      "#D600BF"
+    ],
+    "ring_gradient": [
+      [
+        0,
+        "#00ff00"
+      ],
+      [
+        50,
+        "#ffff00"
+      ],
+      [
+        100,
+        "#ff0000"
+      ]
+    ],
+    "use_ring_gradient": false,
+    "background": "#000000",
+    "logo": {
+      "enable": true,
+      "color": "#FFFFFF"
+    },
+    "gif_background": ""
+  },
+  "dual": {
+    "style": "bars",
+    "reading1": {
+      "key": "CPUTemp",
+      "color": "#FFFFFF",
+      "text_color": "#FFFFFF"
+    },
+    "reading2": {
+      "key": "GPUTemp",
+      "color": "#FFFFFF",
+      "text_color": "#FFFFFF"
+    },
+    "colors": [
+      "#6B00DE",
+      "#D600BF",
+      "#818181"
+    ],
+    "background": "#000000",
+    "gif_background": ""
+  },
+  "clock": {
+    "style": "digital_gradient",
+    "format": "24hrs",
+    "analog": {
+      "background": "#000000",
+      "dial": "#FFFFFF",
+      "seconds": "#8A00FC"
+    },
+    "digital": {
+      "text": "#FFFFFF",
+      "dial": "#FFFFFF",
+      "gradient": [
+        [
+          0,
+          "#4FC5FA"
+        ],
+        [
+          100,
+          "#8221FF"
+        ]
+      ]
+    },
+    "digital_gradient": {
+      "gradient": [
+        [
+          0,
+          "#00ffd3"
+        ],
+        [
+          100,
+          "#0d00ff"
+        ]
+      ]
+    }
+  },
+  "image": {
+    "file": ""
+  },
+  "gif": {
+    "file": ""
+  },
+  "carousel": {
+    "duration_ms": 5000,
+    "faces": [
+      {
+        "type": "single",
+        "style": "radial-fill-v2",
+        "reading": {
+          "key": "LiquidTemp",
+          "color": "#FFFFFF",
+          "text_color": "#FFFFFF"
+        },
+        "colors": [
+          "#6B00DE",
+          "#D600BF"
+        ],
+        "background": "#000000",
+        "logo": {
+          "enable": true,
+          "color": "#FFFFFF"
+        },
+        "ring_gradient": [
+          [
+            0,
+            "#00ff00"
+          ],
+          [
+            50,
+            "#ffff00"
+          ],
+          [
+            100,
+            "#ff0000"
+          ]
+        ],
+        "use_ring_gradient": false,
+        "gif_background": ""
+      },
+      {
+        "type": "dual",
+        "style": "bars",
+        "reading1": {
+          "key": "CPUTemp",
+          "color": "#FFFFFF",
+          "text_color": "#FFFFFF"
+        },
+        "reading2": {
+          "key": "GPUTemp",
+          "color": "#FFFFFF",
+          "text_color": "#FFFFFF"
+        },
+        "colors": [
+          "#6B00DE",
+          "#D600BF",
+          "#818181"
+        ],
+        "background": "#000000",
+        "gif_background": ""
+      },
+      {
+        "type": "dual",
+        "style": "bars",
+        "reading1": {
+          "key": "CPUFrequency",
+          "color": "#FFFFFF",
+          "text_color": "#FFFFFF"
+        },
+        "reading2": {
+          "key": "GPUFrequency",
+          "color": "#FFFFFF",
+          "text_color": "#FFFFFF"
+        },
+        "colors": [
+          "#6B00DE",
+          "#D600BF",
+          "#818181"
+        ],
+        "background": "#000000",
+        "gif_background": ""
+      },
+      {
+        "type": "clock",
+        "style": "digital_gradient",
+        "format": "24hrs",
+        "digital_gradient": {
+          "gradient": [
+            [
+              0,
+              "#00ffd3"
+            ],
+            [
+              100,
+              "#0d00ff"
+            ]
+          ]
+        },
+        "analog": {
+          "background": "#000000",
+          "dial": "#FFFFFF",
+          "seconds": "#8A00FC"
+        },
+        "digital": {
+          "text": "#FFFFFF"
+        }
+      }
+    ]
+  },
+  "rgb": {
+    "enable": true,
+    "effect": "audio_bass",
+    "colors": [
+      "#FFFFFF"
+    ],
+    "brightness": 100,
+    "speed": 2,
+    "direction": "forward",
+    "fps": 20
+  }
+}

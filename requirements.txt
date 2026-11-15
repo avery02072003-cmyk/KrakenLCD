@@ -1,0 +1,10 @@
+# 必要套件 / Required
+liquidctl
+winusbcdc
+Pillow
+numpy
+psutil
+pythonnet
+nvidia-ml-py
+# 選用：音訊燈效（Audio Bass／Audio Level）/ Optional: audio-reactive RGB effects
+pyaudiowpatch

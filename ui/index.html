@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kraken 控制台</title>
+<style>
+/* ===== 配色（深色，接近 NZXT CAM）===== */
+:root{
+  --bg:#141518; --panel:#1d1f24; --panel2:#24272d; --line:#30343b;
+  --text:#e9eaee; --muted:#8d929c; --accent:#8a00fc; --accent2:#d600bf;
+  --ok:#2ecc71; --warn:#f0a020; --bad:#ff5a5a; --radius:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI","Microsoft JhengHei UI",sans-serif}
+header{position:sticky;top:0;z-index:5;background:rgba(20,21,24,.94);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line);padding:10px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px}
+header h1 span{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;color:transparent}
+.chips{display:flex;gap:8px;flex-wrap:wrap;flex:1}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:13px;white-space:nowrap}
+.chip b{font-weight:600;color:#fff;margin-left:4px}
+.conn{font-size:13px;display:flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+main{max-width:1280px;margin:0 auto;padding:20px;display:grid;gap:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.card>h2{margin:0 0 14px;font-size:16px;display:flex;align-items:center;gap:10px}
+.split{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px}
+@media (max-width:900px){.split{grid-template-columns:1fr}}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tab{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:7px 14px;border-radius:8px;cursor:pointer;font:inherit}
+.tab:hover{border-color:#555}
+.tab.on{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px 18px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field>label{color:var(--muted);font-size:12.5px}
+.row{display:flex;align-items:center;gap:8px}
+select,input[type=text],input[type=number]{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+  border-radius:7px;padding:6px 9px;font:inherit;min-width:0;width:100%}
+input[type=number]{width:90px}
+input[type=color]{width:36px;height:30px;border:1px solid var(--line);border-radius:7px;background:none;padding:2px;cursor:pointer;flex:none}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.hex{width:92px!important;font-family:Consolas,monospace;text-transform:uppercase}
+button.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer;font:inherit}
+button.btn:hover{border-color:#666}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.icon{background:none;border:1px solid var(--line);color:var(--text);border-radius:6px;width:28px;height:28px;cursor:pointer}
+button.icon:hover{border-color:#777}
+/* 欄位標題旁的「還原預設」小按鈕；值已是預設時變淡 */
+button.rst{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 4px;margin-left:4px;line-height:1}
+button.rst:hover{color:var(--text)}
+button.rst.same{opacity:.3}
+.sub{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:12px;background:#1a1c20}
+.sub>.title{font-weight:600;margin-bottom:10px;color:#cfd2d8}
+.note{color:var(--muted);font-size:12.5px}
+.warn{color:var(--warn);font-size:13px}
+.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.switch input{display:none}
+.switch i{width:38px;height:21px;border-radius:999px;background:#444;position:relative;transition:.2s;flex:none}
+.switch i:after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
+.switch input:checked+i{background:var(--accent)}
+.switch input:checked+i:after{left:20px}
+/* 預覽 */
+.preview{display:flex;flex-direction:column;align-items:center;gap:10px;position:sticky;top:80px;align-self:start}
+.preview img{width:240px;height:240px;border-radius:0;box-shadow:0 0 0 6px #0b0b0d,0 0 0 8px #2b2e34}
+.thumbs{display:grid;grid-template-columns:repeat(2,120px);gap:12px}
+.thumbs img{width:120px;height:120px;border-radius:0;box-shadow:0 0 0 3px #0b0b0d,0 0 0 4px #2b2e34;opacity:.55;transition:.2s}
+.thumbs img.cur{opacity:1;box-shadow:0 0 0 3px #0b0b0d,0 0 0 5px var(--accent)}
+/* 輪播清單 */
+.face{border:1px solid var(--line);border-radius:10px;margin-top:10px;background:#1a1c20}
+.face .hd{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
+.face .hd .n{width:24px;height:24px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-size:12px;flex:none}
+.face .hd .n.cur{background:var(--accent)}
+.face .hd .t{flex:1;font-weight:600}
+.face .bd{padding:4px 14px 14px;display:none}
+.face.open .bd{display:block}
+/* 漸層色標 */
+.stops{display:flex;flex-direction:column;gap:6px}
+.gbar{height:10px;border-radius:5px;border:1px solid var(--line)}
+/* LED 模擬 */
+.fans{display:flex;gap:26px;justify-content:center}
+canvas.fan{width:130px;height:130px}
+.leds{display:grid;grid-template-columns:repeat(8,auto);gap:6px;justify-content:start}
+.toast{position:fixed;right:20px;bottom:20px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+  padding:8px 14px;opacity:0;transition:.3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1><span>KRAKEN</span> 控制台</h1>
+  <div class="chips" id="chips"></div>
+  <div class="conn"><span class="dot" id="dot"></span><span id="connText">連線中…</span></div>
+  <button class="btn" id="langBtn" title="Language / 語言"></button>
+</header>
+
+<main>
+  <!-- ===== LCD ===== -->
+  <section class="card">
+    <h2>LCD 螢幕</h2>
+    <div class="split">
+      <div>
+        <div class="tabs" id="modeTabs"></div>
+        <div id="modeEditor"></div>
+        <div class="sub">
+          <div class="title">螢幕通用設定</div>
+          <div class="grid" id="general"></div>
+        </div>
+      </div>
+      <div class="preview" id="preview"></div>
+    </div>
+  </section>
+
+  <!-- ===== RGB ===== -->
+  <section class="card">
+    <h2>RGB 燈效 <span class="note">F240 RGB Core 風扇（2 顆 × 8 顆 LED）</span></h2>
+    <div class="split">
+      <div id="rgbEditor"></div>
+      <div class="preview">
+        <div class="fans"><canvas class="fan" id="fan0" width="260" height="260"></canvas>
+          <canvas class="fan" id="fan1" width="260" height="260"></canvas></div>
+        <div class="note">即時顯示目前送到風扇的顏色</div>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   介面語言（中文／English）
+   作法：程式照常產生中文介面，English 模式下由 MutationObserver 監看所有新加入的
+   文字與 title／placeholder 屬性，依下方對照表即時換成英文。這樣不必改動每個欄位的程式。
+   語言選擇記在瀏覽器 localStorage（只是個人偏好，讀不到時依瀏覽器語言決定）。
+   ===================================================================== */
+const LANG = (() => {
+  try { const v = localStorage.getItem("kraken_lang"); if (v==="zh"||v==="en") return v; } catch(e) {}
+  return (navigator.language||"").toLowerCase().startsWith("zh") ? "zh" : "en";
+})();
+function setLang(v){ try { localStorage.setItem("kraken_lang", v); } catch(e) {} location.reload(); }
+
+// 完整字串對照（中文 → 英文）
+const I18N = {
+  "Kraken 控制台":"Kraken Console", "控制台":"Console", "連線中…":"Connecting…",
+  "LCD 螢幕":"LCD screen", "螢幕通用設定":"Screen settings", "RGB 燈效":"RGB lighting",
+  "F240 RGB Core 風扇（2 顆 × 8 顆 LED）":"F240 RGB Core fans (2 × 8 LEDs)",
+  "即時顯示目前送到風扇的顏色":"Live view of the colors sent to the fans",
+  // 模式與讀值
+  "液溫":"Liquid", "單一資訊圖":"Single infographic", "雙資訊圖":"Dual infographic", "時鐘":"Clock",
+  "圖片":"Image", "輪播":"Carousel",
+  "CPU 溫度":"CPU temperature", "CPU 使用率":"CPU load", "CPU 時脈":"CPU clock",
+  "GPU 溫度":"GPU temperature", "GPU 使用率":"GPU load", "GPU 時脈":"GPU clock",
+  // 燈效名稱
+  "固定":"Fixed", "光譜波 Spectrum Wave":"Spectrum Wave", "呼吸 Breathing":"Breathing", "漸變 Fading":"Fading",
+  "覆蓋跑馬燈 Covering Marquee":"Covering Marquee", "溫度監控 Temperature Monitor":"Temperature Monitor",
+  "跑馬燈 Marquee":"Marquee", "脈衝 Pulse":"Pulse", "超級彩虹 Super Rainbow":"Super Rainbow",
+  "音訊低音 Audio Bass":"Audio Bass", "音訊音量 Audio Level":"Audio Level", "彩虹流動 Rainbow Flow":"Rainbow Flow",
+  "交替 Alternating":"Alternating", "太極 Tai Chi":"Tai Chi", "星空 Starry Night":"Starry Night",
+  "彩虹脈衝 Rainbow Pulse":"Rainbow Pulse", "燭光 Candle":"Candle", "波浪 Wave":"Wave",
+  "水冷 Water Cooler":"Water Cooler", "載入 Loading":"Loading",
+  "很慢":"Very slow", "慢":"Slow", "正常":"Normal", "快":"Fast", "很快":"Very fast",
+  // 通用元件
+  "預設漸層":"default gradient", "開":"On", "關":"Off", "空白":"(empty)", "已還原預設":"Reset to default",
+  "檔案完整路徑，或按「上傳」":"Full file path, or press Upload", "上傳":"Upload", "刪除":"Delete",
+  "＋ 色標":"＋ Stop", "點右鍵刪除":"Right-click to remove", "新增顏色":"Add color",
+  // 讀值與畫面
+  "顯示內容":"Reading", "數值顏色":"Value color", "標籤顏色":"Label color",
+  "自訂標籤（留空用預設）":"Custom label (blank = default)", "例如 Liquid、CPU":"e.g. Liquid, CPU",
+  "此畫面全部還原預設":"Reset this face to defaults",
+  "顯示液溫（CAM 單一資訊圖預設樣式）。這台水冷的韌體不支援切換到內建液溫畫面，所以由電腦端每秒畫一次送出。":
+    "Shows the liquid temperature (CAM's default single-infographic style). This cooler's firmware cannot switch to its built-in liquid screen, so the PC draws and sends it once per second.",
+  "樣式":"Style", "環形（CAM 預設）":"Ring (CAM default)", "滿版填色":"Full fill",
+  "整圈環（這台 CAM 也顯示成環形預設）":"Full ring (CAM also shows the default ring on this model)",
+  "視覺化顏色 1":"Visual color 1", "視覺化顏色 2":"Visual color 2", "背景顏色":"Background color",
+  "環形改用溫度漸層色（綠→黃→紅）":"Use temperature gradient on ring (green→yellow→red)",
+  "顯示 NZXT logo":"Show NZXT logo", "logo 顏色":"Logo color", "溫度漸層":"Temperature gradient", "讀值":"Reading",
+  "GIF 背景（選用，留空為純色背景）":"GIF background (optional; blank = solid color)",
+  "長條（CAM 預設）":"Bars (CAM default)", "弧形":"Arcs", "讀值 1 顏色":"Reading 1 color", "讀值 2 顏色":"Reading 2 color",
+  "讀值 1（上）":"Reading 1 (top)", "讀值 2（下）":"Reading 2 (bottom)", "GIF 背景（選用）":"GIF background (optional)",
+  "漸層數位":"Gradient digital", "數位":"Digital", "類比":"Analog", "時制":"Hour format",
+  "24 小時":"24-hour", "12 小時":"12-hour", "背景":"Background", "錶盤與指針":"Dial and hands", "秒針":"Second hand",
+  "文字顏色":"Text color", "文字漸層（上→下）":"Text gradient (top→bottom)",
+  "圖片檔（常見格式皆可，保留原比例完整顯示，空白處補黑邊）":"Image file (common formats; keeps aspect ratio with black bars)",
+  "GIF 檔":"GIF file", "每個畫面停留":"Time per face", "秒":"s", "上移":"Move up", "下移":"Move down",
+  "＋ 新增畫面":"＋ Add face",
+  // 通用設定
+  "亮度":"Brightness", "畫面旋轉":"Rotation", "-90°（CAM 設定）":"-90° (CAM setting)", "溫度單位":"Temperature unit",
+  "攝氏 °C":"Celsius °C", "華氏 °F":"Fahrenheit °F", "溫度刻度最低":"Temperature scale min",
+  "溫度刻度最高":"Temperature scale max", "CPU 時脈刻度上限":"CPU clock scale max",
+  "GPU 時脈刻度上限":"GPU clock scale max", "讀值更新間隔":"Reading update interval",
+  // 預覽
+  "沒有畫面":"No faces", "（無法預覽，檢查檔案路徑）":"(No preview; check the file path)",
+  "預覽（實際讀值）":"Preview (live readings)", "紫框＝LCD 目前顯示的畫面":"Purple frame = face currently on the LCD",
+  // RGB
+  "逐顆 LED 顏色（上排風扇 1、下排風扇 2）":"Per-LED colors (top row fan 1, bottom row fan 2)",
+  "全部套用主色":"Apply main color to all", "取消逐顆設定":"Clear per-LED colors",
+  "由本程式控制燈光":"Control lighting with this program", "效果":"Effect", "顏色":"Color",
+  "顏色 1":"Color 1", "顏色 2":"Color 2", "速度":"Speed", "方向":"Direction", "順向 →":"Forward →", "反向 ←":"Backward ←",
+  "LED 大小":"LED size", "移動":"Moving", "此燈效全部還原預設":"Reset this effect to defaults",
+  "已關閉：本程式不會改動風扇燈光（保留目前狀態）。":"Off: this program leaves the fan lighting unchanged (keeps its current state).",
+  "顏色（依序循環）":"Colors (cycled in order)", "漸層":"Gradient", "溫度來源":"Temperature source",
+  "範圍最低":"Range min", "範圍最高":"Range max", "溫度漸層（低→高）":"Temperature gradient (low→high)",
+  "逐顆自訂 LED 顏色":"Set colors per LED",
+  "未安裝 pyaudiowpatch，音訊效果目前顯示靜態顏色。":"pyaudiowpatch is not installed, so audio effects show a static color.",
+  "更新頻率":"Update rate", "動態效果若出現跳格或卡住，把更新頻率調低。":"If animated effects stutter or freeze, lower the update rate.",
+  // 狀態列與存檔
+  "泵":"Pump", "風扇":"Fan", "裝置錯誤：重新連線中":"Device error: reconnecting",
+  "已連線，設定即時套用":"Connected; changes apply immediately", "常駐程式未執行":"Background program not running",
+  "已儲存並套用":"Saved and applied", "儲存失敗":"Save failed",
+};
+// 含變數的字串：依格式換句
+const I18N_PATTERNS = [
+  [/^還原預設：([\s\S]*)$/, x => "Reset to default: " + trCore(x)],
+  [/^↺ (.+)$/, x => "↺ " + trCore(x)],
+  [/^已上傳 (.+)$/, x => "Uploaded " + x],
+  [/^([\d.]+) 秒$/, x => x + " s"],
+  [/^(\d+) 顆$/, x => x + (x==="1" ? " LED" : " LEDs")],
+  [/^(\d+) 格\/秒$/, x => x + " fps"],
+  [/^按 ＋ 新增，色塊上按右鍵刪除（最多 (\d+) 色）$/, x => "Press ＋ to add; right-click a swatch to remove (up to " + x + " colors)"],
+  [/^(\S+) rpm（(\d+)%）$/, (a, b) => a + " rpm (" + b + "%)"],
+  [/^風扇 (\d+)・LED (\d+)$/, (a, b) => "Fan " + a + " · LED " + b],
+];
+const CJK = /[　-鿿＀-￯]/;
+function trCore(t){
+  if (I18N[t] !== undefined) return I18N[t];
+  for (const [re, f] of I18N_PATTERNS){ const m = t.match(re); if (m) return f(...m.slice(1)); }
+  if (t.includes("／")) return t.split("／").map(trCore).join(" / ");     // 例如輪播的「CPU 溫度／GPU 溫度」
+  if (t.includes("、")) return t.split("、").map(trCore).join(", ");      // 例如還原提示的顏色清單
+  return t;
+}
+// 翻譯一段字串，保留前後空白；中文模式或不含中文時原樣回傳
+function tr(s){
+  if (LANG !== "en" || !s || !CJK.test(s)) return s;
+  const [, a, core, b] = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  return a + trCore(core) + b;
+}
+// 翻譯一個節點（含子孫）：文字節點與 title／placeholder 屬性
+function trNode(root){
+  if (root.nodeType === 3){ const v = tr(root.nodeValue); if (v !== root.nodeValue) root.nodeValue = v; return; }
+  if (root.nodeType !== 1 || root.tagName === "SCRIPT" || root.tagName === "STYLE") return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  for (let n = root; n; n = w.nextNode()){
+    if (n.nodeType === 3){ const v = tr(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; continue; }
+    for (const at of ["title", "placeholder"]){
+      const o = n.getAttribute(at); if (o){ const v = tr(o); if (v !== o) n.setAttribute(at, v); }
+    }
+  }
+}
+if (LANG === "en"){
+  document.documentElement.lang = "en";
+  document.title = tr(document.title);
+  trNode(document.body);
+  // 之後動態產生的內容（重畫欄位、提示訊息、狀態列）也即時翻譯
+  new MutationObserver(ms => { for (const m of ms){
+    if (m.type === "childList") m.addedNodes.forEach(trNode);
+    else trNode(m.target);
+  }}).observe(document.body, {childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:["title","placeholder"]});
+}
+// 頁首語言切換鈕
+document.getElementById("langBtn").textContent = LANG === "en" ? "中文" : "English";
+document.getElementById("langBtn").onclick = () => setLang(LANG === "en" ? "zh" : "en");
+
+/* =====================================================================
+   Kraken 控制台前端：讀取／修改 config.json，常駐程式偵測到變更立即套用。
+   ===================================================================== */
+let cfg = null;          // 目前設定（直接修改後呼叫 changed()）
+let meta = {};           // 伺服器提供的效果預設值、讀值清單、音訊與權限狀態
+let live = {};           // /api/state 即時狀態
+
+// ---------- 名稱對照 ----------
+const MODES = [["liquid","液溫"],["single","單一資訊圖"],["dual","雙資訊圖"],["clock","時鐘"],
+               ["image","圖片"],["gif","GIF"],["carousel","輪播"]];
+const KEY_NAMES = {LiquidTemp:"液溫",CPUTemp:"CPU 溫度",CPULoad:"CPU 使用率",CPUFrequency:"CPU 時脈",
+                   GPUTemp:"GPU 溫度",GPULoad:"GPU 使用率",GPUFrequency:"GPU 時脈"};
+const EFFECTS = [["fixed","固定"],["spectrum_wave","光譜波 Spectrum Wave"],["breathing","呼吸 Breathing"],
+  ["fading","漸變 Fading"],["covering_marquee","覆蓋跑馬燈 Covering Marquee"],["temperature_monitor","溫度監控 Temperature Monitor"],
+  ["marquee","跑馬燈 Marquee"],["pulse","脈衝 Pulse"],["super_rainbow","超級彩虹 Super Rainbow"],
+  ["audio_bass","音訊低音 Audio Bass"],["audio_level","音訊音量 Audio Level"],["rainbow_flow","彩虹流動 Rainbow Flow"],
+  ["alternating","交替 Alternating"],["tai_chi","太極 Tai Chi"],["starry_night","星空 Starry Night"],
+  ["rainbow_pulse","彩虹脈衝 Rainbow Pulse"],["candle","燭光 Candle"],["wave","波浪 Wave"],
+  ["water_cooler","水冷 Water Cooler"],["loading","載入 Loading"]];
+// 各效果有哪些參數（對應 CAM 畫面上的選項）
+const EFFECT_PARAMS = {
+  fixed:["color1","leds"], spectrum_wave:["speed","direction"], breathing:["colorsN","speed"],
+  fading:["colorsN","speed"], covering_marquee:["colorsN","speed","direction"],
+  temperature_monitor:["temp"], marquee:["color1","speed","direction","led_size"], pulse:["colorsN","speed"],
+  super_rainbow:["speed","direction"], audio_bass:["color1"], audio_level:["gradient"],
+  rainbow_flow:["speed","direction"], alternating:["colors2","speed","direction","led_size","moving"],
+  tai_chi:["colors2","speed","direction"], starry_night:["color1","speed"], rainbow_pulse:["speed","direction"],
+  candle:["color1"], wave:["color1","leds","speed","direction"], water_cooler:["speed"], loading:["color1","speed"]};
+const SPEED_NAMES = ["很慢","慢","正常","快","很快"];
+// 各畫面類型的預設值（新增輪播畫面或切換類型時使用，同 CAM 預設）
+const FACE_DEFAULTS = {
+  liquid:{},
+  single:{style:"radial-fill-v2",reading:{key:"LiquidTemp",color:"#FFFFFF",text_color:"#FFFFFF"},
+          colors:["#6B00DE","#D600BF"],ring_gradient:[[0,"#00ff00"],[50,"#ffff00"],[100,"#ff0000"]],
+          use_ring_gradient:false,background:"#000000",logo:{enable:true,color:"#FFFFFF"},gif_background:""},
+  dual:{style:"bars",reading1:{key:"CPUTemp",color:"#FFFFFF",text_color:"#FFFFFF"},
+        reading2:{key:"GPUTemp",color:"#FFFFFF",text_color:"#FFFFFF"},
+        colors:["#6B00DE","#D600BF","#818181"],background:"#000000",gif_background:""},
+  clock:{style:"digital_gradient",format:"24hrs",analog:{background:"#000000",dial:"#FFFFFF",seconds:"#8A00FC"},
+         digital:{text:"#FFFFFF"},digital_gradient:{gradient:[[0,"#00ffd3"],[100,"#0d00ff"]]}},
+  image:{file:""}, gif:{file:""}};
+const clone = o => JSON.parse(JSON.stringify(o));
+
+// ---------- DOM 小工具 ----------
+function el(tag, attrs={}, ...kids){
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)){
+    if (k==="class") e.className=v; else if (k.startsWith("on")) e.addEventListener(k.slice(2),v);
+    else if (v!==undefined && v!==null) e.setAttribute(k,v);
+  }
+  for (const k of kids.flat()) if (k!=null) e.append(k.nodeType?k:document.createTextNode(k));
+  return e;
+}
+const field = (label, ...ctl) => el("div",{class:"field"}, el("label",{},label), el("div",{class:"row"},...ctl));
+function toHex(c){ c=String(c||"#FFFFFF").trim(); if(!c.startsWith("#")) c="#"+c; return /^#[0-9a-fA-F]{6}$/.test(c)?c.toUpperCase():"#FFFFFF"; }
+
+// 顏色欄位：色盤＋HEX 文字框，兩者同步
+function colorCtl(get, set){
+  const pick = el("input",{type:"color",value:toHex(get())});
+  const txt = el("input",{type:"text",class:"hex",value:toHex(get()),maxlength:7});
+  pick.oninput = () => { txt.value=pick.value.toUpperCase(); set(txt.value); changed(); };
+  txt.onchange = () => { const h=toHex(txt.value); txt.value=h; pick.value=h; set(h); changed(); };
+  return [pick, txt];
+}
+// 把欄位的讀寫函式記在 DOM 節點上，讓 R()（還原預設）可以通用處理每一種欄位
+const bind = (node, get, set) => { node._get = get; node._set = set; return node; };
+const colorField = (label,get,set) => bind(field(label, ...colorCtl(get,set)), get, set);
+function selectField(label, opts, get, set, rerender=false){
+  const s = el("select",{}, opts.map(([v,t]) => el("option",{value:v},t)));
+  s.value = get();
+  s.onchange = () => { set(s.value); changed(); if (rerender) renderAll(); };
+  const node = bind(field(label, s), get, set);
+  node._fmt = v => (opts.find(o => String(o[0])===String(v))||[0,v])[1];   // 提示文字顯示選項名稱
+  return node;
+}
+function numberField(label, get, set, step=1, suffix=""){
+  const n = el("input",{type:"number",step,value:get()});
+  n.onchange = () => { set(parseFloat(n.value)); changed(); };
+  const node = bind(field(label, n, suffix?el("span",{class:"note"},suffix):null), get, set);
+  node._fmt = v => v + (suffix ? " "+suffix : "");
+  return node;
+}
+function rangeField(label, min, max, step, get, set, fmt=v=>v){
+  const out = el("span",{class:"note",style:"min-width:46px;text-align:right"}, fmt(get()));
+  const r = el("input",{type:"range",min,max,step,value:get()});
+  r.oninput = () => { out.textContent=fmt(+r.value); set(+r.value); changed(); };
+  const node = bind(field(label, r, out), get, set);
+  node._fmt = fmt;                                  // 還原按鈕的提示文字用同一套格式
+  return node;
+}
+function switchField(label, get, set, rerender=false){
+  const c = el("input",{type:"checkbox"}); c.checked=!!get();
+  c.onchange = () => { set(c.checked); changed(); if (rerender) renderAll(); };
+  return bind(el("div",{class:"field"}, el("label",{}," "), el("label",{class:"switch"}, c, el("i"), label)), get, set);
+}
+function textField(label, get, set, ph=""){
+  const t = el("input",{type:"text",value:get()||"",placeholder:ph});
+  t.onchange = () => { set(t.value); changed(); };
+  return bind(field(label, t), get, set);
+}
+// 還原預設：在欄位標題旁加 ↺ 按鈕，按下把值設回 def 並重畫；目前值已等於預設時按鈕變淡
+function R(node, def){
+  if (!node || def===undefined || !node._set) return node;
+  const norm = v => JSON.stringify(v===undefined||v===null ? "" : v);
+  const same = norm(node._get()) === norm(def);   // 初始狀態
+  const show = Array.isArray(def) ? (Array.isArray(def[0]) ? "預設漸層" : def.join("、"))
+             : typeof def==="boolean" ? (def?"開":"關")
+             : def==="" ? "空白" : (node._fmt ? node._fmt(def) : String(def));
+  const b = el("button",{class:"rst"+(same?" same":""),type:"button",title:"還原預設："+show,
+    onclick:e=>{ e.preventDefault(); e.stopPropagation(); node._set(clone(def)); changed(); renderAll(); toast("已還原預設"); }},"↺");
+  node.querySelector("label").append(b);
+  const upd = () => setTimeout(() => b.classList.toggle("same", norm(node._get()) === norm(def)));
+  for (const ev of ["input","change","click"]) node.addEventListener(ev, upd);   // 改值後立即反映
+  return node;
+}
+// 整組還原按鈕（畫面、燈效）
+const resetAllBtn = (text, fn) => el("button",{class:"btn",type:"button",
+  onclick:()=>{ fn(); changed(); renderAll(); toast("已還原預設"); }},"↺ "+text);
+// 檔案欄位：路徑文字框＋上傳按鈕（上傳到程式的 media 資料夾）
+function fileField(label, get, set, accept){
+  const t = el("input",{type:"text",value:get()||"",placeholder:"檔案完整路徑，或按「上傳」"});
+  t.onchange = () => { set(t.value.trim().replace(/^"|"$/g,"")); changed(); };
+  const f = el("input",{type:"file",accept,style:"display:none"});
+  f.onchange = async () => {
+    const file = f.files[0]; if (!file) return;
+    const r = await fetch("/api/upload?name="+encodeURIComponent(file.name),{method:"POST",body:file});
+    const j = await r.json();
+    if (j.path){ t.value=j.path; set(j.path); changed(); toast("已上傳 "+file.name); }
+  };
+  const b = el("button",{class:"btn",onclick:()=>f.click()},"上傳");
+  return bind(field(label, t, b, f), get, set);
+}
+// 漸層色標編輯：每個色標＝位置(0~100)＋顏色
+function gradientField(label, get, set){
+  const wrap = el("div",{class:"field"}, el("label",{},label));
+  const bar = el("div",{class:"gbar"}); const list = el("div",{class:"stops"});
+  function draw(){
+    const st = get();
+    bar.style.background = "linear-gradient(90deg,"+st.slice().sort((a,b)=>a[0]-b[0]).map(s=>toHex(s[1])+" "+s[0]+"%").join(",")+")";
+    list.replaceChildren(...st.map((s,i) => {
+      const pos = el("input",{type:"number",min:0,max:100,value:s[0]});
+      pos.onchange = () => { s[0]=Math.max(0,Math.min(100,+pos.value)); set(st); draw(); changed(); };
+      const del = el("button",{class:"icon",title:"刪除",onclick:()=>{ if(st.length>2){st.splice(i,1);set(st);draw();changed();}}},"✕");
+      return el("div",{class:"row"}, ...colorCtl(()=>s[1], v=>{s[1]=v;set(st);draw();}), pos, el("span",{class:"note"},"%"), del);
+    }));
+  }
+  const add = el("button",{class:"btn",onclick:()=>{const st=get(); st.push([100,"#FFFFFF"]); set(st); draw(); changed();}},"＋ 色標");
+  draw(); wrap.append(bar, list, el("div",{class:"row"},add)); return bind(wrap, get, set);
+}
+// 多色清單（breathing 等最多 8 色）
+function colorsListField(label, get, set, max){
+  const wrap = el("div",{class:"field"}, el("label",{},label)); const box = el("div",{class:"row",style:"flex-wrap:wrap"});
+  function draw(){
+    const cs = get();
+    box.replaceChildren(...cs.map((c,i) => {
+      const pick = el("input",{type:"color",value:toHex(c),title:"點右鍵刪除"});
+      pick.oninput = () => { cs[i]=pick.value.toUpperCase(); set(cs); changed(); };
+      pick.oncontextmenu = e => { e.preventDefault(); if (cs.length>1){ cs.splice(i,1); set(cs); draw(); changed(); } };
+      return pick;
+    }), cs.length<max ? el("button",{class:"icon",title:"新增顏色",onclick:()=>{cs.push("#FFFFFF");set(cs);draw();changed();}},"＋") : null);
+  }
+  draw(); wrap.append(box, el("span",{class:"note"},"按 ＋ 新增，色塊上按右鍵刪除（最多 "+max+" 色）")); return bind(wrap, get, set);
+}
+
+// ---------- 讀值編輯 ----------
+// d＝這組讀值的預設（取自 FACE_DEFAULTS）
+function readingEditor(title, r, d={key:"LiquidTemp",color:"#FFFFFF",text_color:"#FFFFFF"}){
+  return el("div",{class:"sub"}, el("div",{class:"title"},title), el("div",{class:"grid"},
+    R(selectField("顯示內容", Object.entries(KEY_NAMES), ()=>r.key||"LiquidTemp", v=>{r.key=v; delete r.label;}, true), d.key),
+    R(colorField("數值顏色", ()=>r.color, v=>r.color=v), d.color),
+    R(colorField("標籤顏色", ()=>r.text_color, v=>r.text_color=v), d.text_color),
+    R(textField("自訂標籤（留空用預設）", ()=>r.label, v=>{ if(v) r.label=v; else delete r.label; }, "例如 Liquid、CPU"), "")));
+}
+
+// ---------- 畫面編輯（單一／雙／時鐘／圖片／GIF）----------
+function faceEditor(f, type){
+  const box = el("div");
+  const fill = (k, d) => { if (f[k]===undefined) f[k]=clone(d); return f[k]; };
+  for (const [k,v] of Object.entries(FACE_DEFAULTS[type]||{})) fill(k,v);
+  const D = FACE_DEFAULTS[type]||{};                // 本類型畫面的預設值（每個欄位的還原目標）
+  if (type!=="liquid" && Object.keys(D).length)     // 整個畫面一次還原
+    box.append(el("div",{class:"row",style:"justify-content:flex-end;margin-bottom:8px"},
+      resetAllBtn("此畫面全部還原預設", ()=>{ for (const [k,v] of Object.entries(D)) f[k]=clone(v); })));
+  if (type==="liquid"){
+    box.append(el("p",{class:"note"},"顯示液溫（CAM 單一資訊圖預設樣式）。這台水冷的韌體不支援切換到內建液溫畫面，所以由電腦端每秒畫一次送出。"));
+  } else if (type==="single"){
+    box.append(el("div",{class:"grid"},
+      R(selectField("樣式",[["radial-fill-v2","環形（CAM 預設）"],["full-fill","滿版填色"],["radial-fill","整圈環（這台 CAM 也顯示成環形預設）"]],()=>f.style,v=>f.style=v,true), D.style),
+      R(colorField("視覺化顏色 1",()=>f.colors[0],v=>f.colors[0]=v), D.colors[0]),
+      R(colorField("視覺化顏色 2",()=>f.colors[1],v=>f.colors[1]=v), D.colors[1]),
+      // 滿版填色整面都是漸層、沒有圓環：背景色與環形漸層只在環形樣式顯示
+      f.style!=="full-fill" ? R(colorField("背景顏色",()=>f.background,v=>f.background=v), D.background) : null,
+      f.style!=="full-fill" ? R(switchField("環形改用溫度漸層色（綠→黃→紅）",()=>f.use_ring_gradient,v=>f.use_ring_gradient=v,true), D.use_ring_gradient) : null,
+      // 只有滿版填色會畫 logo（環形與整圈環在這台都用 CAM 預設版面，CAM 也不畫 logo）
+      f.style==="full-fill" ? R(switchField("顯示 NZXT logo",()=>f.logo.enable,v=>f.logo.enable=v), D.logo.enable) : null,
+      f.style==="full-fill" ? R(colorField("logo 顏色",()=>f.logo.color,v=>f.logo.color=v), D.logo.color) : null));
+    if (f.use_ring_gradient && f.style!=="full-fill") box.append(el("div",{class:"sub"}, R(gradientField("溫度漸層",()=>f.ring_gradient,v=>f.ring_gradient=v), D.ring_gradient)));
+    box.append(readingEditor("讀值", f.reading, D.reading));
+    if (f.style!=="full-fill")   // 滿版漸層會蓋住整個背景，GIF 背景看不到
+      box.append(el("div",{class:"sub"}, R(fileField("GIF 背景（選用，留空為純色背景）",()=>f.gif_background,v=>f.gif_background=v,"image/gif"), D.gif_background)));
+  } else if (type==="dual"){
+    box.append(el("div",{class:"grid"},
+      R(selectField("樣式",[["bars","長條（CAM 預設）"],["arcs","弧形"]],()=>f.style,v=>f.style=v,true), D.style),
+      R(colorField("讀值 1 顏色",()=>f.colors[0],v=>f.colors[0]=v), D.colors[0]),
+      R(colorField("讀值 2 顏色",()=>f.colors[1],v=>f.colors[1]=v), D.colors[1]),
+      // 底條／底環顏色不開放設定：CAM 渲染核心不吃第三色，長條底條固定 #898989、弧形底環固定色
+      R(colorField("背景顏色",()=>f.background,v=>f.background=v), D.background)));
+    box.append(readingEditor("讀值 1（上）", f.reading1, D.reading1), readingEditor("讀值 2（下）", f.reading2, D.reading2));
+    box.append(el("div",{class:"sub"}, R(fileField("GIF 背景（選用）",()=>f.gif_background,v=>f.gif_background=v,"image/gif"), D.gif_background)));
+  } else if (type==="clock"){
+    box.append(el("div",{class:"grid"},
+      R(selectField("樣式",[["digital_gradient","漸層數位"],["digital","數位"],["analog","類比"]],()=>f.style,v=>f.style=v,true), D.style),
+      f.style!=="analog" ? R(selectField("時制",[["24hrs","24 小時"],["12hrs","12 小時"]],()=>f.format,v=>f.format=v,true), D.format) : null));
+    if (f.style==="analog") box.append(el("div",{class:"grid",style:"margin-top:12px"},
+      R(colorField("背景",()=>f.analog.background,v=>f.analog.background=v), D.analog.background),
+      R(colorField("錶盤與指針",()=>f.analog.dial,v=>f.analog.dial=v), D.analog.dial),
+      R(colorField("秒針",()=>f.analog.seconds,v=>f.analog.seconds=v), D.analog.seconds)));
+    if (f.style==="digital") box.append(el("div",{class:"grid",style:"margin-top:12px"},
+      R(colorField("文字顏色",()=>f.digital.text,v=>f.digital.text=v), D.digital.text)));
+    if (f.style==="digital_gradient") box.append(el("div",{class:"sub"},
+      R(gradientField("文字漸層（上→下）",()=>f.digital_gradient.gradient,v=>f.digital_gradient.gradient=v), D.digital_gradient.gradient)));
+  } else if (type==="image"){
+    box.append(R(fileField("圖片檔（常見格式皆可，保留原比例完整顯示，空白處補黑邊）",()=>f.file,v=>f.file=v,"image/*"), D.file));
+  } else if (type==="gif"){
+    box.append(R(fileField("GIF 檔",()=>f.file,v=>f.file=v,"image/gif"), D.file));
+  }
+  return box;
+}
+
+// ---------- 輪播 ----------
+let openFace = 0;
+function carouselEditor(){
+  const c = cfg.carousel = cfg.carousel || {duration_ms:5000, faces:[]};
+  const box = el("div");
+  box.append(el("div",{class:"grid"},
+    R(numberField("每個畫面停留",()=>c.duration_ms/1000,v=>c.duration_ms=Math.max(1,v||5)*1000,0.5,"秒"), 5)));
+  c.faces.forEach((f,i) => {
+    const type = f.type||"liquid";
+    const name = (MODES.find(m=>m[0]===type)||[0,type])[1];
+    const desc = type==="single" ? KEY_NAMES[f.reading?.key]||"" :
+                 type==="dual" ? (KEY_NAMES[f.reading1?.key]||"")+"／"+(KEY_NAMES[f.reading2?.key]||"") :
+                 type==="clock" ? ({analog:"類比",digital:"數位",digital_gradient:"漸層數位"}[f.style]||"") : "";
+    const typeSel = el("select",{onclick:e=>e.stopPropagation()},
+      MODES.filter(m=>m[0]!=="carousel").map(([v,t])=>el("option",{value:v},t)));
+    typeSel.value = type;
+    typeSel.onchange = () => { c.faces[i] = Object.assign({type:typeSel.value}, clone(FACE_DEFAULTS[typeSel.value])); changed(); renderAll(); };
+    const move = (d) => e => { e.stopPropagation(); const j=i+d; if (j<0||j>=c.faces.length) return;
+      [c.faces[i],c.faces[j]]=[c.faces[j],c.faces[i]]; openFace=j; changed(); renderAll(); };
+    const del = e => { e.stopPropagation(); if (c.faces.length>1){ c.faces.splice(i,1); changed(); renderAll(); } };
+    const card = el("div",{class:"face"+(openFace===i?" open":"")},
+      el("div",{class:"hd",onclick:()=>{ openFace = openFace===i?-1:i; renderAll(); }},
+        el("span",{class:"n"+(live.face_index===i&&cfg.mode==="carousel"?" cur":""),id:"fn"+i}, String(i+1)),
+        el("span",{class:"t"}, name, el("span",{class:"note"},"  "+desc)),
+        el("div",{style:"width:130px"},typeSel),
+        el("button",{class:"icon",title:"上移",onclick:move(-1)},"↑"),
+        el("button",{class:"icon",title:"下移",onclick:move(1)},"↓"),
+        el("button",{class:"icon",title:"刪除",onclick:del},"✕")),
+      el("div",{class:"bd"}, faceEditor(f, type)));
+    box.append(card);
+  });
+  box.append(el("div",{class:"row",style:"margin-top:12px"},
+    el("button",{class:"btn",onclick:()=>{ c.faces.push(Object.assign({type:"single"},clone(FACE_DEFAULTS.single))); openFace=c.faces.length-1; changed(); renderAll(); }},"＋ 新增畫面")));
+  return box;
+}
+
+// ---------- LCD 區塊 ----------
+function currentFaces(){
+  const m = cfg.mode;
+  if (m==="carousel") return (cfg.carousel?.faces||[]);
+  if (m==="liquid") return [{type:"liquid"}];   // 液溫畫面由電腦端畫，也有預覽
+  return [Object.assign({}, cfg[m]||{}, {type:m})];
+}
+function renderLCD(){
+  document.getElementById("modeTabs").replaceChildren(...MODES.map(([v,t]) =>
+    el("button",{class:"tab"+(cfg.mode===v?" on":""),onclick:()=>{ cfg.mode=v; changed(); renderAll(); }},t)));
+  const ed = document.getElementById("modeEditor");
+  if (cfg.mode==="carousel") ed.replaceChildren(carouselEditor());
+  else { cfg[cfg.mode] = cfg[cfg.mode] || {}; ed.replaceChildren(faceEditor(cfg[cfg.mode], cfg.mode)); }
+  document.getElementById("general").replaceChildren(
+    R(rangeField("亮度",0,100,1,()=>cfg.brightness??100,v=>cfg.brightness=v,v=>v+"%"), 100),
+    R(selectField("畫面旋轉",[["-90","-90°（CAM 設定）"],["0","0°"],["90","90°"],["180","180°"]],
+      ()=>String(cfg.rotation??0),v=>cfg.rotation=+v), "0"),
+    R(selectField("溫度單位",[["C","攝氏 °C"],["F","華氏 °F"]],()=>cfg.temperature_unit||"C",v=>cfg.temperature_unit=v), "C"),
+    R(numberField("溫度刻度最低",()=>cfg.temp_min??0,v=>cfg.temp_min=v,1,"°C"), 0),
+    R(numberField("溫度刻度最高",()=>cfg.temp_max??100,v=>cfg.temp_max=v,1,"°C"), 100),
+    R(numberField("CPU 時脈刻度上限",()=>cfg.cpu_freq_max??6,v=>cfg.cpu_freq_max=v,0.1,"GHz"), 6),
+    R(numberField("GPU 時脈刻度上限",()=>cfg.gpu_freq_max??3,v=>cfg.gpu_freq_max=v,0.1,"GHz"), 3),
+    R(numberField("讀值更新間隔",()=>cfg.interval_s??1,v=>cfg.interval_s=Math.max(0.2,v||1),0.1,"秒"), 1));
+  refreshPreview();
+}
+
+// 預覽：每個畫面向伺服器要一張圖
+let prevToken = 0;
+async function refreshPreview(){
+  const token = ++prevToken;
+  const pv = document.getElementById("preview");
+  const faces = currentFaces();
+  if (!faces.length){ pv.replaceChildren(el("div",{class:"note",style:"padding-top:90px"},"沒有畫面")); return; }
+  const imgs = await Promise.all(faces.map(f => fetch("/api/preview",{method:"POST",
+      body:JSON.stringify({face:f,cfg})}).then(r=>r.json()).then(j=>j.image).catch(()=>null)));
+  if (token!==prevToken) return;               // 已有更新的預覽請求
+  const mk = (src,i) => src ? el("img",{src,id:"pv"+i}) : el("div",{class:"note",style:"width:120px;text-align:center"},"（無法預覽，檢查檔案路徑）");
+  if (faces.length===1) pv.replaceChildren(mk(imgs[0],0), el("div",{class:"note"},"預覽（實際讀值）"));
+  else pv.replaceChildren(el("div",{class:"thumbs"}, imgs.map(mk)), el("div",{class:"note"},"紫框＝LCD 目前顯示的畫面"));
+  markCurrent();
+}
+function markCurrent(){
+  if (cfg.mode!=="carousel") return;
+  document.querySelectorAll(".thumbs img").forEach((im,i)=>im.classList.toggle("cur", i===live.face_index));
+  document.querySelectorAll(".face .n").forEach((n,i)=>n.classList.toggle("cur", i===live.face_index));
+}
+
+// ---------- RGB 區塊 ----------
+function setEffect(eff){
+  const keep = {enable:cfg.rgb.enable, brightness:cfg.rgb.brightness??100, fps:cfg.rgb.fps??20,
+                speed:cfg.rgb.speed??2, direction:cfg.rgb.direction||"forward"};
+  cfg.rgb = Object.assign(keep, {effect:eff}, clone(meta.effects?.[eff]||{}));
+  changed(); renderAll();
+}
+function ledsEditor(r){
+  r.leds = r.leds && r.leds.length===16 ? r.leds : Array(16).fill(toHex((r.colors||["#FFFFFF"])[0]));
+  const grid = el("div",{class:"leds"});
+  r.leds.forEach((c,i) => {
+    const p = el("input",{type:"color",value:toHex(c),title:"風扇 "+(i<8?1:2)+"・LED "+(i%8+1)});
+    p.oninput = () => { r.leds[i]=p.value.toUpperCase(); changed(); };
+    grid.append(p);
+  });
+  return el("div",{class:"sub"}, el("div",{class:"title"},"逐顆 LED 顏色（上排風扇 1、下排風扇 2）"), grid,
+    el("div",{class:"row",style:"margin-top:8px"},
+      el("button",{class:"btn",onclick:()=>{ r.leds=Array(16).fill(toHex(r.colors[0])); changed(); renderAll(); }},"全部套用主色"),
+      el("button",{class:"btn",onclick:()=>{ delete r.leds; r.per_led=false; changed(); renderAll(); }},"取消逐顆設定")));
+}
+function renderRGB(){
+  cfg.rgb = cfg.rgb || {enable:true,effect:"fixed",colors:["#FFFFFF"],brightness:100,speed:2,direction:"forward",fps:20};
+  const r = cfg.rgb, ed = document.getElementById("rgbEditor");
+  const params = EFFECT_PARAMS[r.effect]||[];
+  const E = meta.effects?.[r.effect] || {};          // 目前效果的預設值（伺服器 rgb.EFFECT_DEFAULTS）
+  const EC = E.colors || ["#FFFFFF"];
+  const effSel = el("select",{}, EFFECTS.map(([v,t])=>el("option",{value:v},t)));
+  effSel.value = r.effect; effSel.onchange = () => setEffect(effSel.value);
+  const g = el("div",{class:"grid"},
+    R(switchField("由本程式控制燈光",()=>r.enable,v=>r.enable=v,true), true),
+    R(Object.assign(bind(field("效果", effSel), ()=>r.effect, v=>setEffect(v)), {_fmt:v=>(EFFECTS.find(e=>e[0]===v)||[0,v])[1]}), "fixed"),
+    R(rangeField("亮度",0,100,1,()=>r.brightness??100,v=>r.brightness=v,v=>v+"%"), 100));
+  r.colors = r.colors || ["#FFFFFF"];
+  if (params.includes("color1")) g.append(R(colorField("顏色",()=>r.colors[0],v=>r.colors[0]=v), EC[0]));
+  if (params.includes("colors2")){ while(r.colors.length<2) r.colors.push("#FFFFFF");
+    g.append(R(colorField("顏色 1",()=>r.colors[0],v=>r.colors[0]=v), EC[0]),
+             R(colorField("顏色 2",()=>r.colors[1],v=>r.colors[1]=v), EC[1]||"#FFFFFF")); }
+  if (params.includes("speed")) g.append(R(rangeField("速度",0,4,1,()=>r.speed??2,v=>r.speed=v,v=>SPEED_NAMES[v]), 2));
+  if (params.includes("direction")) g.append(R(selectField("方向",[["forward","順向 →"],["backward","反向 ←"]],()=>r.direction||"forward",v=>r.direction=v), "forward"));
+  if (params.includes("led_size")) g.append(R(rangeField("LED 大小",1,7,1,()=>r.led_size??3,v=>r.led_size=v,v=>v+" 顆"), E.led_size??3));
+  if (params.includes("moving")) g.append(R(switchField("移動",()=>r.moving??true,v=>r.moving=v), E.moving??true));
+  // 整個燈效一次還原：效果本身的預設參數＋速度／方向／亮度／更新頻率（保留「由本程式控制」開關與目前效果）
+  const parts = [el("div",{class:"row",style:"justify-content:flex-end;margin-bottom:8px"},
+    resetAllBtn("此燈效全部還原預設", ()=>{ cfg.rgb = Object.assign({enable:r.enable, effect:r.effect, brightness:100,
+      speed:2, direction:"forward", fps:20}, clone(E)); })), g];
+  if (!r.enable) parts.push(el("p",{class:"note"},"已關閉：本程式不會改動風扇燈光（保留目前狀態）。"));
+  if (params.includes("colorsN")) parts.push(el("div",{class:"sub"}, R(colorsListField("顏色（依序循環）",()=>r.colors,v=>r.colors=v,8), EC)));
+  if (params.includes("gradient")){ r.gradient = r.gradient || clone(meta.effects?.audio_level?.gradient||[[0,"#00FF00"],[100,"#FF0000"]]);
+    parts.push(el("div",{class:"sub"}, R(gradientField("漸層",()=>r.gradient,v=>r.gradient=v), E.gradient))); }
+  if (params.includes("temp")){
+    r.temp_range = r.temp_range || [15,90]; r.gradient = r.gradient || clone(meta.effects?.temperature_monitor?.gradient);
+    parts.push(el("div",{class:"sub"}, el("div",{class:"grid"},
+      R(selectField("溫度來源",[["LiquidTemp","液溫"],["CPUTemp","CPU 溫度"],["GPUTemp","GPU 溫度"]],()=>r.temp_source||"LiquidTemp",v=>r.temp_source=v), E.temp_source||"LiquidTemp"),
+      R(numberField("範圍最低",()=>r.temp_range[0],v=>r.temp_range[0]=v,1,"°C"), (E.temp_range||[15,90])[0]),
+      R(numberField("範圍最高",()=>r.temp_range[1],v=>r.temp_range[1]=v,1,"°C"), (E.temp_range||[15,90])[1])),
+      R(gradientField("溫度漸層（低→高）",()=>r.gradient,v=>r.gradient=v), E.gradient)));
+  }
+  if (params.includes("leds")){
+    if (r.effect==="wave" || r.per_led || (r.leds&&r.leds.length)) parts.push(ledsEditor(r));
+    else parts.push(el("div",{class:"row",style:"margin-top:12px"},
+      el("button",{class:"btn",onclick:()=>{ r.per_led=true; changed(); renderAll(); }},"逐顆自訂 LED 顏色")));
+  }
+  if (r.effect && r.effect.startsWith("audio_") && !meta.audio)
+    parts.push(el("p",{class:"warn"},"未安裝 pyaudiowpatch，音訊效果目前顯示靜態顏色。"));
+  parts.push(el("div",{class:"sub"}, el("div",{class:"grid"},
+    R(rangeField("更新頻率",1,30,1,()=>r.fps??20,v=>r.fps=v,v=>v+" 格/秒"), 20)),
+    el("div",{class:"note"},"動態效果若出現跳格或卡住，把更新頻率調低。")));
+  ed.replaceChildren(...parts);
+}
+
+// 風扇 LED 模擬：每顆風扇 8 顆 LED 排成一圈
+function drawFans(){
+  const leds = live.rgb || null;
+  [0,1].forEach(f => {
+    const c = document.getElementById("fan"+f), x = c.getContext("2d");
+    x.clearRect(0,0,260,260);
+    x.beginPath(); x.arc(130,130,118,0,7); x.fillStyle="#0e0f12"; x.fill();
+    x.beginPath(); x.arc(130,130,34,0,7); x.fillStyle="#1d1f24"; x.fill();
+    for (let i=0;i<8;i++){
+      const col = leds ? leds[f*8+i] : [60,60,60];
+      const a0 = (i/8)*Math.PI*2 - Math.PI/2 + 0.08, a1 = ((i+1)/8)*Math.PI*2 - Math.PI/2 - 0.08;
+      x.beginPath(); x.arc(130,130,100,a0,a1); x.lineWidth=18; x.lineCap="round";
+      x.strokeStyle=`rgb(${col[0]},${col[1]},${col[2]})`;
+      x.shadowColor=x.strokeStyle; x.shadowBlur=leds?16:0; x.stroke(); x.shadowBlur=0;
+    }
+  });
+}
+
+// ---------- 狀態列 ----------
+function fmtVal(v){
+  if (!v || v[0]===null || v[0]===undefined) return "--";
+  const [n,u] = v; return u==="GHz" ? n.toFixed(2)+" GHz" : u==="%" ? Math.round(n)+"%" : n.toFixed(1)+"°C";
+}
+function renderChips(){
+  const s = live.status, v = live.values||{};
+  const chips = [];
+  if (s){ chips.push(["液溫", s.liquid.toFixed(1)+"°C"], ["泵", s.pump_rpm+" rpm（"+s.pump_duty+"%）"],
+                     ["風扇", s.fan_rpm+" rpm（"+s.fan_duty+"%）"]); }
+  chips.push(["CPU", fmtVal(v.CPUTemp)+" · "+fmtVal(v.CPULoad)], ["GPU", fmtVal(v.GPUTemp)+" · "+fmtVal(v.GPULoad)]);
+  document.getElementById("chips").replaceChildren(...chips.map(([k,val])=>el("span",{class:"chip"},k,el("b",{},val))));
+}
+async function poll(){
+  try{
+    live = await (await fetch("/api/state")).json();
+    document.getElementById("dot").className = "dot "+(live.error?"bad":"ok");
+    document.getElementById("connText").textContent = live.error ? "裝置錯誤：重新連線中" : "已連線，設定即時套用";
+    renderChips(); drawFans(); markCurrent();
+  }catch(e){
+    document.getElementById("dot").className="dot bad";
+    document.getElementById("connText").textContent="常駐程式未執行";
+  }
+}
+
+// ---------- 儲存 ----------
+let saveTimer = null;
+function changed(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const r = await fetch("/api/config",{method:"POST",body:JSON.stringify(cfg)});
+    toast(r.ok ? "已儲存並套用" : "儲存失敗");
+    refreshPreview();
+  }, 300);   // 改動後 0.3 秒存檔套用（原 0.6 秒，切換模式反應太慢）
+}
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1500); }
+function renderAll(){ renderLCD(); renderRGB(); }
+
+// ---------- 啟動 ----------
+(async () => {
+  meta = await (await fetch("/api/meta")).json();
+  cfg = await (await fetch("/api/config")).json();
+  renderAll(); poll();
+  setInterval(poll, 250);
+  setInterval(()=>{ refreshPreview(); }, 5000);   // 讀值變化時更新預覽
+})();
+</script>
+</body>
+</html>
