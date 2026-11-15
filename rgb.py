@@ -99,7 +99,7 @@ AUDIO_DEFAULTS = {             # 音訊燈效的擷取設定（config.json 的 r
     "audio_device": "",        # 擷取哪個播放裝置的聲音；空字串＝跟隨 Windows 預設播放裝置
     "audio_auto_gain": True,   # 自動增益：依近期最大音量自動調整，小聲的歌也會亮滿
     "audio_sensitivity": 100,  # 靈敏度 %：最後再乘上的倍率（自動或手動增益都適用）
-    "audio_gate": 2,           # 雜訊門檻 %（滿刻度振幅的百分比）：低於門檻一律當成安靜
+    "audio_gate": 0,           # 雜訊門檻 %（滿刻度振幅的百分比）：低於門檻一律當成安靜；預設 0＝不擋（底噪已由自動增益的下限壓住）
 }
 AUDIO_STATUS = {"device": "", "ok": False, "level": 0.0, "bass": 0.0, "raw_level": 0.0, "raw_bass": 0.0}
 

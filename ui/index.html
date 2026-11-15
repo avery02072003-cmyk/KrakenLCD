@@ -652,7 +652,7 @@ function audioEditor(r){
       R(devField, ""),
       R(switchField("自動增益（依近期最大音量自動調整）", ()=>r.audio_auto_gain??true, v=>r.audio_auto_gain=v), true),
       R(rangeField("靈敏度",10,300,10,()=>r.audio_sensitivity??100,v=>r.audio_sensitivity=v,v=>v+"%"), 100),
-      R(rangeField("雜訊門檻",0,20,1,()=>r.audio_gate??2,v=>r.audio_gate=v,v=>v+"%"), 2)),
+      R(rangeField("雜訊門檻",0,20,1,()=>r.audio_gate??0,v=>r.audio_gate=v,v=>v+"%"), 0)),
     el("div",{class:"row",style:"margin-top:10px;gap:10px"}, el("span",{class:"note",style:"min-width:56px"},"音量"), bar("aLvl")),
     el("div",{class:"row",style:"margin-top:6px;gap:10px"}, el("span",{class:"note",style:"min-width:56px"},"低音"), bar("aBass")),
     el("div",{class:"note",id:"aDev",style:"margin-top:6px"},""),
