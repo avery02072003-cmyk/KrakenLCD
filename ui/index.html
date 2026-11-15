@@ -611,21 +611,45 @@ function ledsEditor(r){
       el("button",{class:"btn",onclick:()=>{ delete r.leds; r.per_led=false; changed(); renderAll(); }},"取消逐顆設定")));
 }
 // 音訊擷取設定：擷取哪個播放裝置、自動增益、靈敏度、雜訊門檻，加上即時音量表（poll() 更新）
-let audioDevs = null;          // /api/audio_devices 結果（null＝還沒抓、false＝抓取中）
+let audioDevs = {devices:[], default:""};   // 最近一次 /api/audio_devices 結果（Windows 即時清單）
+let audioDevsKey = "", audioDevsAt = 0;    // 上次結果的內容（判斷有沒有變）與抓取時間
+// 擷取裝置的選項：跟隨預設（附上 Windows 目前的預設裝置名稱）、各裝置、已指定但目前不在的裝置
+function audioOpts(r){
+  const d = audioDevs;
+  const opts = [["", "跟隨 Windows 預設" + (d.default ? "（目前：" + d.default + "）" : "")],
+                ...d.devices.map(x => [x, x])];
+  if (r.audio_device && audioDevsKey && !d.devices.includes(r.audio_device)) opts.push([r.audio_device, r.audio_device + "（目前找不到）"]);
+  return opts;
+}
+// 就地重建下拉選單的選項（不重畫整個編輯區，拖曳中的滑桿不受影響）
+function fillAudioSelect(sel, r){
+  sel.replaceChildren(...audioOpts(r).map(([v,t]) => el("option",{value:v},t)));
+  sel.value = r.audio_device || "";
+}
+// 每 3 秒向伺服器抓一次裝置清單（伺服器每次都即時查 Windows）；內容有變才更新選單。
+// 使用者正打開選單時先不動，下次再試。只在音訊編輯區顯示時才抓（renderAudioMeter 每次 poll 呼叫）。
+function refreshAudioDevs(force){
+  if (!document.getElementById("aDevSel")) return;
+  if (!force && Date.now() - audioDevsAt < 3000) return;
+  audioDevsAt = Date.now();
+  fetch("/api/audio_devices").then(x=>x.json()).then(j=>{
+    const k = JSON.stringify(j);
+    if (k === audioDevsKey) return;
+    const sel = document.getElementById("aDevSel");
+    if (!sel || document.activeElement === sel) return;      // 選單打開中：下次再更新
+    audioDevs = j; audioDevsKey = k;
+    fillAudioSelect(sel, cfg.rgb);
+  }).catch(()=>{});
+}
 function audioEditor(r){
-  if (audioDevs === null){
-    audioDevs = false;
-    fetch("/api/audio_devices").then(x=>x.json()).then(j=>{ audioDevs=j; renderRGB(); })
-      .catch(()=>{ audioDevs={devices:[],default:""}; renderRGB(); });
-  }
-  const devs = audioDevs || {devices:[], default:""};
-  const opts = [["", "跟隨 Windows 預設" + (devs.default ? "（目前：" + devs.default + "）" : "")],
-                ...devs.devices.map(d => [d, d])];
-  if (r.audio_device && !devs.devices.includes(r.audio_device)) opts.push([r.audio_device, r.audio_device + "（目前找不到）"]);
+  const devField = selectField("擷取裝置", audioOpts(r), ()=>r.audio_device||"", v=>{ r.audio_device=v; fillAudioSelect(devField.querySelector("select"), r); });
+  devField.querySelector("select").id = "aDevSel";
+  devField._fmt = v => (audioOpts(r).find(o => o[0]===String(v))||[0,v])[1];
+  setTimeout(()=>refreshAudioDevs(true));                     // 編輯區一出現就抓最新清單
   const bar = id => el("div",{class:"abar"}, el("i",{id}));
   return el("div",{class:"sub"}, el("div",{class:"title"},"音訊擷取"),
     el("div",{class:"grid"},
-      R(selectField("擷取裝置", opts, ()=>r.audio_device||"", v=>r.audio_device=v), ""),
+      R(devField, ""),
       R(switchField("自動增益（依近期最大音量自動調整）", ()=>r.audio_auto_gain??true, v=>r.audio_auto_gain=v), true),
       R(rangeField("靈敏度",10,300,10,()=>r.audio_sensitivity??100,v=>r.audio_sensitivity=v,v=>v+"%"), 100),
       R(rangeField("雜訊門檻",0,20,1,()=>r.audio_gate??2,v=>r.audio_gate=v,v=>v+"%"), 2)),
@@ -639,6 +663,7 @@ function renderAudioMeter(){
   lv.style.width = Math.round((a.level||0)*100) + "%";
   document.getElementById("aBass").style.width = Math.round((a.bass||0)*100) + "%";
   document.getElementById("aDev").textContent = a.ok ? "擷取中：" + a.device : "尚未擷取聲音";
+  refreshAudioDevs();
 }
 function renderRGB(){
   cfg.rgb = cfg.rgb || {enable:true,effect:"fixed",colors:["#FFFFFF"],brightness:100,speed:2,direction:"forward",fps:20};

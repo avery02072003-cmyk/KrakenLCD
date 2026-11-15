@@ -104,8 +104,28 @@ AUDIO_DEFAULTS = {             # 音訊燈效的擷取設定（config.json 的 r
 AUDIO_STATUS = {"device": "", "ok": False, "level": 0.0, "bass": 0.0, "raw_level": 0.0, "raw_bass": 0.0}
 
 
+def _windows_audio():
+    """
+    即時向 Windows 查詢播放裝置清單與預設裝置（audio_devices.py，Core Audio）。
+    每次都是最新狀態（拔插、改預設立刻反映）；查詢失敗回傳 None，呼叫端改用 PortAudio 的結果。
+    """
+    try:
+        import audio_devices
+        return audio_devices.list_render_devices()
+    except Exception as e:
+        _LOG.debug("Windows 音訊裝置查詢失敗：%s", e)
+        return None
+
+
 def list_audio_devices():
-    """列出可擷取的播放裝置（WASAPI loopback）名稱與目前的 Windows 預設裝置；沒有 pyaudiowpatch 時回傳空清單。"""
+    """
+    列出可擷取的播放裝置名稱與目前的 Windows 預設裝置（給網頁控制台）。
+    優先用 Windows Core Audio 即時查詢；失敗才退回 PortAudio
+    （PortAudio 在音訊燈效擷取中不會重新列舉，拔插裝置不會反映）。
+    """
+    win = _windows_audio()
+    if win is not None:
+        return win
     try:
         import pyaudiowpatch as pa
     except ImportError:
@@ -138,13 +158,16 @@ class AudioMeter:
       底噪就被放大成全亮。現在最大值有下限 PEAK_FLOOR，另有雜訊門檻（audio_gate）。
     - 數值改用與取樣率無關的振幅（0~1，1＝滿刻度），96 kHz 裝置用較大的分析區塊維持低頻解析度。
     - 不用阻塞式讀取：先查可讀量，沒資料時數值平滑淡出，不會卡在最後一刻。
-    - 跟隨 Windows 預設裝置時，安靜一陣子就重新初始化、重抓預設裝置（登入時裝置可能還沒就緒，
-      或預設裝置之後才換）；超過 NO_DATA_REOPEN_S 秒完全沒資料也重開。
-      PortAudio 只在完全重新初始化時才重新列舉裝置，所以要整個 terminate 再建立。
+    - 每 DEVICE_CHECK_S 秒向 Windows 即時查一次播放裝置（Core Audio）：
+      跟隨預設時，Windows 預設裝置一換就切過去；指定的裝置拔掉時改用預設裝置，插回來就切回。
+      超過 NO_DATA_REOPEN_S 秒完全沒資料也重開。
+      PortAudio 只在完全重新初始化時才重新列舉裝置，所以每次切換都整個 terminate 再建立。
+      （Windows 查詢失敗時，退回舊做法：跟隨預設時安靜一陣子就重開一次重抓預設裝置。）
     - 任何例外（裝置拔除等）都在 RETRY_S 秒後重試，執行緒不會結束。
     """
     NO_DATA_REOPEN_S = 5.0     # 這麼久完全沒資料就重開擷取
-    QUIET_RECHECK_S = 15.0     # 跟隨預設裝置時，安靜狀態下每隔這麼久重抓一次預設裝置
+    DEVICE_CHECK_S = 2.0       # 每隔這麼久向 Windows 查一次播放裝置（預設是否改變、指定裝置是否拔插）
+    QUIET_RECHECK_S = 15.0     # （Windows 查詢失敗時的備援）跟隨預設時，安靜狀態下每隔這麼久重抓預設裝置
     RETRY_S = 2.0              # 出錯後等多久重試
     FADE_S = 0.25              # 沒資料時數值淡出的時間常數
     PEAK_DECAY_S = 4.0         # 自動增益的最大值衰減時間常數
@@ -159,6 +182,8 @@ class AudioMeter:
         self._reopen = False
         self._peak_l, self._peak_b = self.PEAK_FLOOR, self.PEAK_FLOOR   # 重開擷取時保留
         self.device = ""                             # 目前擷取的裝置名稱
+        self._warned = set()                         # 已警告過「找不到」的指定裝置（同一裝置只警告一次）
+        self._target_miss = ""                       # 想用卻在 PortAudio 找不到的裝置（避免每 2 秒重開一次）
         self.configure(cfg or {})
         threading.Thread(target=self._run, daemon=True).start()
 
@@ -197,13 +222,33 @@ class AudioMeter:
                 time.sleep(self.RETRY_S)
         AUDIO_STATUS.update(ok=False, level=0.0, bass=0.0)
 
-    def _pick_device(self, p):
-        """依設定挑裝置：有指定且找得到就用它，否則用 Windows 預設播放裝置。"""
+    def _target(self, win):
+        """依設定與 Windows 即時清單，算出「應該擷取哪個裝置」的名稱（win 為 None 時回傳空字串）。"""
+        if win is None:
+            return ""
+        if self.want_device and self.want_device in win["devices"]:
+            return self.want_device
+        return win["default"]
+
+    def _pick_device(self, p, win):
+        """
+        依設定挑裝置，回傳 (PortAudio 裝置資訊, 是否跟隨預設)：
+        有指定且找得到就用它；否則用 Windows 預設播放裝置。
+        指定裝置找不到時只在第一次記錄警告，裝置回來後清掉紀錄（下次拔掉會再警告一次）。
+        """
+        loops = {_loop_name(d["name"]): d for d in p.get_loopback_device_info_generator()}
+        target = self._target(win)
+        self._target_miss = target if target and target not in loops else ""
         if self.want_device:
-            for d in p.get_loopback_device_info_generator():
-                if _loop_name(d["name"]) == self.want_device:
-                    return d, False
-            _LOG.warning("找不到指定的音訊裝置「%s」，改用 Windows 預設裝置", self.want_device)
+            # 指定裝置要 Windows 清單與 PortAudio 都有才算在（以 Windows 即時清單為準）
+            if self.want_device in loops and (win is None or self.want_device in win["devices"]):
+                self._warned.discard(self.want_device)
+                return loops[self.want_device], False
+            if self.want_device not in self._warned:
+                self._warned.add(self.want_device)
+                _LOG.warning("找不到指定的音訊裝置「%s」，先改用 Windows 預設裝置，裝置接回後會自動切回", self.want_device)
+        if win is not None and win["default"] in loops:
+            return loops[win["default"]], True
         return p.get_default_wasapi_loopback(), True
 
     def _capture(self, np, pa):
@@ -211,7 +256,7 @@ class AudioMeter:
         p = pa.PyAudio()
         st = None
         try:
-            dev, follow = self._pick_device(p)
+            dev, follow = self._pick_device(p, _windows_audio())
             rate, ch = int(dev["defaultSampleRate"]), max(1, dev["maxInputChannels"])
             n = 1024 if rate <= 48000 else 2048            # 每格約 21 ms；96 kHz 用 2048 維持低頻解析度
             st = p.open(format=pa.paFloat32, channels=ch, rate=rate, input=True,
@@ -228,7 +273,8 @@ class AudioMeter:
                 low[1] = True
             win = np.hanning(n)
             norm = 2.0 / win.sum()                          # FFT 幅度換成正弦波振幅（0~1）
-            t_open = last_data = last_tick = last_loud = time.time()
+            t_open = last_data = last_tick = last_loud = last_check = time.time()
+            win_ok = True                                   # Windows 即時查詢是否可用
             while not self._stop and not self._reopen:
                 now = time.time()
                 if st.get_read_available() >= n:
@@ -261,8 +307,17 @@ class AudioMeter:
                     time.sleep(0.01)
                 last_tick = now
                 self._publish()
-                # 跟隨預設裝置：安靜超過 3 秒且距開啟已久，就重開一次重抓預設裝置（安靜時重開不會被察覺）
-                if follow and now - last_loud > 3.0 and now - t_open > self.QUIET_RECHECK_S:
+                # 定時向 Windows 查播放裝置：該擷取的裝置變了（改預設、指定裝置拔插）就重開
+                if now - last_check >= self.DEVICE_CHECK_S:
+                    last_check = now
+                    wa = _windows_audio()                   # 不能叫 win：win 是上面的漢寧窗
+                    win_ok = wa is not None
+                    target = self._target(wa)
+                    if target and target != self.device and target != self._target_miss:
+                        _LOG.info("播放裝置有變動，改擷取：%s", target)
+                        return
+                # 備援（Windows 查詢失敗時）：跟隨預設、安靜超過 3 秒且距開啟已久，就重開一次重抓預設裝置
+                if not win_ok and follow and now - last_loud > 3.0 and now - t_open > self.QUIET_RECHECK_S:
                     return
         finally:
             if st is not None:
