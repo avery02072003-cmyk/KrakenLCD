@@ -1,9 +1,17 @@
 # Kraken LCD：不用 NZXT CAM 也能控制 Kraken 2024 Plus 的 LCD 與 RGB
 
+**中文** | [English](#kraken-lcd-control-the-kraken-2024-plus-lcd-and-rgb-without-nzxt-cam)
+
 直接透過 USB 協定控制 NZXT Kraken 2024 Plus 的 LCD 畫面與風扇 RGB，畫面樣式與燈效照 NZXT CAM 重建，附本機網頁控制台。
 程式**不送任何泵／風扇轉速指令**，可以和 [Fan Control](https://github.com/Rem0o/FanControl.Releases) 同時使用：轉速交給 Fan Control，畫面與燈光交給本程式。
 
-![預覽 / Preview](preview_all.png)
+LCD 畫面預覽：
+
+![LCD 畫面預覽](preview_all.png)
+
+網頁控制台：
+
+![網頁控制台](docs/console_zh.png)
 
 > 非 NZXT 官方專案，與 NZXT 無任何關係；NZXT、Kraken、CAM 為 NZXT Inc. 的商標。使用風險自負。
 
@@ -67,8 +75,18 @@ powershell -ExecutionPolicy Bypass -File install_autostart.ps1
 
 # Kraken LCD: control the Kraken 2024 Plus LCD and RGB without NZXT CAM
 
+[中文](#kraken-lcd不用-nzxt-cam-也能控制-kraken-2024-plus-的-lcd-與-rgb) | **English**
+
 Controls the NZXT Kraken 2024 Plus LCD and fan RGB directly over USB. Faces and effects are rebuilt to match NZXT CAM, and a local web console is included.
 It **never sends pump or fan speed commands**, so it runs alongside [Fan Control](https://github.com/Rem0o/FanControl.Releases): Fan Control handles speeds, this tool handles the screen and lighting.
+
+LCD face previews:
+
+![LCD face previews](preview_all.png)
+
+Web console:
+
+![Web console](docs/console_en.png)
 
 > Not an official NZXT project and not affiliated with NZXT. NZXT, Kraken and CAM are trademarks of NZXT Inc. Use at your own risk.
 

@@ -1,6 +1,6 @@
 # NZXT CAM 功能清單（Kraken 2024 Plus）與本程式對照
 
-[English](#nzxt-cam-feature-map-kraken-2024-plus-vs-this-tool)
+**中文** | [English](#nzxt-cam-feature-map-kraken-2024-plus-vs-this-tool)
 
 擷取來源：NZXT CAM 4.76.9 實機操作畫面、CAM 匯出設定檔、CAM app.asar 內的前端程式碼。擷取日期 2026-11-14～15。
 
@@ -116,7 +116,7 @@
 
 # NZXT CAM feature map (Kraken 2024 Plus) vs this tool
 
-[中文](#nzxt-cam-功能清單kraken-2024-plus與本程式對照)
+[中文](#nzxt-cam-功能清單kraken-2024-plus與本程式對照) | **English**
 
 Sources: NZXT CAM 4.76.9 running on the actual hardware, a CAM settings export, and the front-end code inside CAM's app.asar. Collected 2026-11-14 to 15.
 

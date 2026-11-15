@@ -42,7 +42,7 @@ input[type=number]{width:90px}
 input[type=color]{width:36px;height:30px;border:1px solid var(--line);border-radius:7px;background:none;padding:2px;cursor:pointer;flex:none}
 input[type=range]{width:100%;accent-color:var(--accent)}
 .hex{width:92px!important;font-family:Consolas,monospace;text-transform:uppercase}
-button.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer;font:inherit}
+button.btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer;font:inherit;white-space:nowrap}
 button.btn:hover{border-color:#666}
 button.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button.icon{background:none;border:1px solid var(--line);color:var(--text);border-radius:6px;width:28px;height:28px;cursor:pointer}
@@ -514,7 +514,7 @@ function carouselEditor(){
       el("div",{class:"hd",onclick:()=>{ openFace = openFace===i?-1:i; renderAll(); }},
         el("span",{class:"n"+(live.face_index===i&&cfg.mode==="carousel"?" cur":""),id:"fn"+i}, String(i+1)),
         el("span",{class:"t"}, name, el("span",{class:"note"},"  "+desc)),
-        el("div",{style:"width:130px"},typeSel),
+        el("div",{style:"width:180px"},typeSel),
         el("button",{class:"icon",title:"上移",onclick:move(-1)},"↑"),
         el("button",{class:"icon",title:"下移",onclick:move(1)},"↓"),
         el("button",{class:"icon",title:"刪除",onclick:del},"✕")),
