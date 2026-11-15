@@ -64,6 +64,16 @@ powershell -ExecutionPolicy Bypass -File install_autostart.ps1
 所有設定存在 `config.json`，網頁控制台會直接改寫它；手動編輯存檔後也會立即套用。
 圖片與 GIF 放在 `media/` 資料夾（不納入版本控制）。
 
+### 音訊律動設定
+- **擷取裝置**：預設跟隨 Windows 預設播放裝置，改預設會在約 2 秒內切過去；也可以指定某個裝置。指定的裝置拔掉時先改用預設裝置，接回後自動切回。清單每 3 秒自動更新。
+- **自動增益**：依近期最大音量自動調整，小聲的歌也會亮滿；關閉後改用固定刻度。
+- **靈敏度**：最後再乘上的倍率，太暗就調高。
+- **雜訊門檻**：低於門檻一律當成安靜，沒播聲音燈還在跳就調高。
+- 控制台的音量表顯示的是實際送到燈光的數值，沒播聲音時應該是空的。
+
+### 程式關閉時
+水冷會保持程式關閉前最後送出的畫面與燈光（韌體自己記住）；電腦端逐格送的效果（音訊、波浪、溫度監控）會停在最後一格。改了程式碼或設定異常時，可用控制台頁首的「重新啟動」。
+
 ## 已知限制
 - Kraken 2024 Plus 韌體不支援切換到內建液溫畫面，「液溫」模式改由電腦端繪製。
 - 韌體約每 0.3 秒才處理一次燈光指令，電腦端逐格送的效果（音訊律動、波浪）會有延遲感。
@@ -139,6 +149,16 @@ This creates a scheduled task "KrakenLCD" that starts with highest privileges 10
 ## Configuration
 All settings live in `config.json`. The web console writes to it, and manual edits apply as soon as the file is saved.
 Put images and GIFs in the `media/` folder (not tracked by git).
+
+### Audio effect settings
+- **Capture device**: follows the Windows default playback device by default and switches within about 2 seconds when the default changes; you can also pick a specific device. If that device is unplugged the default is used until it is reconnected, then it switches back. The list refreshes every 3 seconds.
+- **Auto gain**: scales to the recent peak volume so quiet songs still reach full brightness; when off, a fixed scale is used.
+- **Sensitivity**: a final multiplier; raise it if the lights are too dim.
+- **Noise gate**: anything below it counts as silence; raise it if the lights move with nothing playing.
+- The console meters show the values actually sent to the lights and should be empty when nothing is playing.
+
+### When the program is closed
+The cooler keeps the last image and lighting the program sent (the firmware remembers them); host-streamed effects (audio, wave, temperature monitor) freeze on their last frame. Use the Restart button in the console header after updating the code or if something looks wrong.
 
 ## Known limitations
 - The Kraken 2024 Plus firmware cannot switch to its built-in liquid screen, so liquid mode is drawn on the host.

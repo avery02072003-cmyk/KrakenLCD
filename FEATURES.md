@@ -104,6 +104,7 @@
 | CAM 設定檔：每個設定檔綁定照明與冷卻預設，可依程式自動切換 | ⬜ | 可用多個 config 檔＋切換指令實作 |
 | 設定備份：匯出／匯入 JSON | ✅ | 本程式設定就是 `config.json` |
 | 支援（送出客服單）、Beta | ➖ | |
+| （本程式額外）每個設定一鍵還原預設、整個畫面／燈效全部還原、控制台「重新啟動」按鈕 | ✅ | 重新啟動會讓常駐程式收尾後自己開新程序，承襲系統管理員權限，不必按 UAC |
 
 ## 7. 與 CAM 共存須知
 
@@ -220,6 +221,7 @@ Status: ✅ "Firmware" effects use firmware animations (mode values in `HW_MODES
 | CAM profiles: each binds lighting and cooling presets and can switch per application | ⬜ | Could be done with multiple config files plus a switch command |
 | Settings backup: export / import JSON | ✅ | This tool's settings are simply `config.json` |
 | Support (submit a ticket), Beta | ➖ | |
+| (Extra in this tool) per-setting reset to default, reset a whole face / effect, Restart button in the console | ✅ | Restart makes the background program shut down cleanly and start a new process that keeps administrator rights, with no UAC prompt |
 
 ## 7. Running alongside CAM
 
