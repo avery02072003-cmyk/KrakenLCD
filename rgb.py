@@ -40,7 +40,8 @@ EFFECT_DEFAULTS = {
     "pulse": {"colors": ["#6B00DE"]},
     "super_rainbow": {},
     "audio_bass": {"colors": ["#FFFFFF"]},
-    "audio_level": {"gradient": [[0, "#00FF00"], [50, "#FFFF00"], [100, "#FF0000"]]},
+    "audio_level": {"gradient": [[0, "#00FF00"], [50, "#FFFF00"], [100, "#FF0000"]],
+                    "span16": False},   # True＝兩顆風扇串成一條 16 格；False＝每顆各 8 格、兩顆同步
     "rainbow_flow": {},
     "alternating": {"colors": ["#6B00DE", "#D600BF"], "led_size": 4, "moving": True},
     "tai_chi": {"colors": ["#FF0000", "#0000FF"]},
@@ -178,6 +179,7 @@ class AudioMeter:
         self.level = 0.0
         self.bass = 0.0
         self._ok = False
+        self.missing = False          # 沒安裝 pyaudiowpatch（音訊燈效改顯示靜態顏色）
         self._stop = False
         self._reopen = False
         self._peak_l, self._peak_b = self.PEAK_FLOOR, self.PEAK_FLOOR   # 重開擷取時保留
@@ -206,6 +208,7 @@ class AudioMeter:
             import numpy as np
             import pyaudiowpatch as pa
         except ImportError:
+            self.missing = True
             _LOG.warning("未安裝 pyaudiowpatch，音訊燈效改顯示靜態顏色（pip install pyaudiowpatch）")
             return
         fails = 0
@@ -501,19 +504,25 @@ class RgbEngine:
                 out[j] = scale(cols[0], max(0.0, 1 - dist / 4))
 
         elif eff == "audio_bass":             # 低音越強越亮
-            k = self.audio.bass if self.audio and self.audio._ok else 1.0
+            # 沒安裝 pyaudiowpatch 才顯示靜態全亮；擷取尚未開始或切換裝置中一律當成安靜（全暗），不會閃一下全亮
+            k = 1.0 if self._audio_missing() else (self.audio.bass if self.audio._ok else 0.0)
             out = [scale(cols[0], k)] * n
 
         elif eff == "audio_level":            # 音量越大亮越多顆，顏色依位置取漸層
-            lv = self.audio.level if self.audio and self.audio._ok else 1.0
-            lit = int(round(max(0.0, min(1.0, lv)) * LEDS_PER_FAN))   # 亮幾顆：靜音 0 顆、滿音量 8 顆
+            lv = 1.0 if self._audio_missing() else (self.audio.level if self.audio._ok else 0.0)
+            seg = n if self.cfg.get("span16") else LEDS_PER_FAN        # 一條音量條有幾格：16（兩顆串起來）或 8（每顆各一條）
+            lit = int(round(max(0.0, min(1.0, lv)) * seg))            # 亮幾格：靜音 0、滿音量全亮
             for j in range(n):
-                i = j % LEDS_PER_FAN
-                p = i / (LEDS_PER_FAN - 1)                             # 顏色依位置取漸層
+                i = j % seg
+                p = i / (seg - 1)                                      # 顏色依位置取漸層
                 out[j] = gradient(self.cfg["gradient"], p) if i < lit else (0, 0, 0)
 
         bri = float(self.cfg.get("brightness", 100)) / 100.0
         return [scale(c, bri) for c in out]
+
+    def _audio_missing(self):
+        """音訊擷取無法使用（沒有 AudioMeter 或沒安裝 pyaudiowpatch）時回傳 True，音訊效果改顯示靜態顏色。"""
+        return self.audio is None or getattr(self.audio, "missing", False)
 
     def _temperature(self, status):
         src = self.cfg.get("temp_source", "LiquidTemp")

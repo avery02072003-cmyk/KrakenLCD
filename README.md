@@ -23,7 +23,7 @@ LCD 畫面預覽：
 - **RGB 燈效**：CAM 的 20 種效果。
   - 大部分效果交給水冷韌體自己跑動畫（HUE2 `0x2A 0x04`），動畫流暢、不佔 CPU。
   - 溫度監控、波浪、音訊律動（Audio Bass／Level）由電腦端逐格送出，受韌體限制最多每秒約 2.5 格。
-  - 音訊律動可指定擷取哪個播放裝置（或跟隨 Windows 預設，拔插裝置、改預設會即時反映），並調整自動增益、靈敏度與雜訊門檻；控制台有即時音量表。
+  - 音訊律動可指定擷取哪個播放裝置（或跟隨 Windows 預設，拔插裝置、改預設會即時反映），並調整自動增益、靈敏度與雜訊門檻；Audio Level 可選每顆風扇各 8 格或兩顆串成 16 格；控制台有即時音量表。
 - **讀值**：液溫、CPU／GPU 溫度、使用率、時脈；溫度可切換 °C／°F。
 - **網頁控制台**：`http://127.0.0.1:8765`（只綁定本機），改設定約 0.3 秒後自動套用並顯示預覽；介面可切換中文／English，每個設定都能一鍵還原預設；頁首的「重新啟動」按鈕可直接重啟常駐程式（不必再按 UAC）。
 - 拔線、睡眠喚醒後自動重連；LCD 每張畫面送兩次並確認回覆，避免殘影疊圖。
@@ -109,7 +109,7 @@ Web console:
 - **RGB effects**: all 20 CAM effects.
   - Most effects run as firmware animations (HUE2 `0x2A 0x04`): smooth and no CPU cost.
   - Temperature monitor, wave and audio effects (Audio Bass / Level) are streamed from the host, limited by the firmware to about 2.5 frames per second.
-  - Audio effects can capture a specific playback device (or follow the Windows default; plugging/unplugging devices and changing the default take effect live), with auto gain, sensitivity and a noise gate; the console shows live level meters.
+  - Audio effects can capture a specific playback device (or follow the Windows default; plugging/unplugging devices and changing the default take effect live), with auto gain, sensitivity and a noise gate; Audio Level can use 8 LEDs per fan or join both fans into one 16-LED bar; the console shows live level meters.
 - **Readings**: liquid temperature, CPU/GPU temperature, load and clock; °C or °F.
 - **Web console** at `http://127.0.0.1:8765` (localhost only); changes apply about 0.3 s after editing, with a live preview. The UI switches between Chinese and English, and every setting has a one-click reset to default; the Restart button in the header restarts the background program (no UAC prompt).
 - Reconnects after unplugging or sleep; each LCD frame is sent twice and confirmed to avoid ghosting.

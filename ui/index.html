@@ -219,6 +219,7 @@ const I18N = {
   // 音訊擷取
   "音訊擷取":"Audio capture", "擷取裝置":"Capture device", "跟隨 Windows 預設":"Follow Windows default",
   "自動增益（依近期最大音量自動調整）":"Auto gain (adapts to recent peak volume)", "靈敏度":"Sensitivity",
+  "兩顆風扇串成 16 格（關閉＝每顆各 8 格同步）":"Join both fans into one 16-LED bar (off = 8 LEDs each, in sync)",
   "雜訊門檻":"Noise gate", "音量":"Level", "低音":"Bass", "尚未擷取聲音":"Not capturing audio",
   "沒播聲音時音量表應該是空的；有底噪亂跳就調高雜訊門檻，太暗就調高靈敏度或開自動增益。":
     "With nothing playing the meters should stay empty. If background noise makes them jump, raise the noise gate; if the lights are too dim, raise the sensitivity or turn on auto gain.",
@@ -302,7 +303,7 @@ const EFFECT_PARAMS = {
   fixed:["color1","leds"], spectrum_wave:["speed","direction"], breathing:["colorsN","speed"],
   fading:["colorsN","speed"], covering_marquee:["colorsN","speed","direction"],
   temperature_monitor:["temp"], marquee:["color1","speed","direction","led_size"], pulse:["colorsN","speed"],
-  super_rainbow:["speed","direction"], audio_bass:["color1","audio"], audio_level:["gradient","audio"],
+  super_rainbow:["speed","direction"], audio_bass:["color1","audio"], audio_level:["gradient","span16","audio"],
   rainbow_flow:["speed","direction"], alternating:["colors2","speed","direction","led_size","moving"],
   tai_chi:["colors2","speed","direction"], starry_night:["color1","speed"], rainbow_pulse:["speed","direction"],
   candle:["color1"], wave:["color1","leds","speed","direction"], water_cooler:["speed"], loading:["color1","speed"]};
@@ -688,6 +689,7 @@ function renderRGB(){
   if (params.includes("speed")) g.append(R(rangeField("速度",0,4,1,()=>r.speed??2,v=>r.speed=v,v=>SPEED_NAMES[v]), 2));
   if (params.includes("direction")) g.append(R(selectField("方向",[["forward","順向 →"],["backward","反向 ←"]],()=>r.direction||"forward",v=>r.direction=v), "forward"));
   if (params.includes("led_size")) g.append(R(rangeField("LED 大小",1,7,1,()=>r.led_size??3,v=>r.led_size=v,v=>v+" 顆"), E.led_size??3));
+  if (params.includes("span16")) g.append(R(switchField("兩顆風扇串成 16 格（關閉＝每顆各 8 格同步）",()=>r.span16??false,v=>r.span16=v), E.span16??false));
   if (params.includes("moving")) g.append(R(switchField("移動",()=>r.moving??true,v=>r.moving=v), E.moving??true));
   // 整個燈效一次還原：效果本身的預設參數＋速度／方向／亮度／更新頻率（保留「由本程式控制」開關與目前效果）
   const parts = [el("div",{class:"row",style:"justify-content:flex-end;margin-bottom:8px"},
