@@ -334,11 +334,14 @@ function el(tag, attrs={}, ...kids){
 const field = (label, ...ctl) => el("div",{class:"field"}, el("label",{},label), el("div",{class:"row"},...ctl));
 function toHex(c){ c=String(c||"#FFFFFF").trim(); if(!c.startsWith("#")) c="#"+c; return /^#[0-9a-fA-F]{6}$/.test(c)?c.toUpperCase():"#FFFFFF"; }
 
-// 顏色欄位：色盤＋HEX 文字框，兩者同步
+// 顏色欄位：色盤＋HEX 文字框，兩者同步。
+// 色盤拖曳時（input 事件）只更新 HEX 文字；關閉色盤確定選色（change 事件）才寫入設定並存檔套用。
+// 原本每次拖曳都存檔，存檔後的預覽更新／重畫會把還沒選完的色盤關掉，並套用半途的顏色。
 function colorCtl(get, set){
   const pick = el("input",{type:"color",value:toHex(get())});
   const txt = el("input",{type:"text",class:"hex",value:toHex(get()),maxlength:7});
-  pick.oninput = () => { txt.value=pick.value.toUpperCase(); set(txt.value); changed(); };
+  pick.oninput = () => { txt.value=pick.value.toUpperCase(); };
+  pick.onchange = () => { txt.value=pick.value.toUpperCase(); set(txt.value); changed(); };
   txt.onchange = () => { const h=toHex(txt.value); txt.value=h; pick.value=h; set(h); changed(); };
   return [pick, txt];
 }
@@ -434,7 +437,7 @@ function colorsListField(label, get, set, max){
     const cs = get();
     box.replaceChildren(...cs.map((c,i) => {
       const pick = el("input",{type:"color",value:toHex(c),title:"點右鍵刪除"});
-      pick.oninput = () => { cs[i]=pick.value.toUpperCase(); set(cs); changed(); };
+      pick.onchange = () => { cs[i]=pick.value.toUpperCase(); set(cs); changed(); };   // 關閉色盤才套用
       pick.oncontextmenu = e => { e.preventDefault(); if (cs.length>1){ cs.splice(i,1); set(cs); draw(); changed(); } };
       return pick;
     }), cs.length<max ? el("button",{class:"icon",title:"新增顏色",onclick:()=>{cs.push("#FFFFFF");set(cs);draw();changed();}},"＋") : null);
@@ -602,7 +605,7 @@ function ledsEditor(r){
   const grid = el("div",{class:"leds"});
   r.leds.forEach((c,i) => {
     const p = el("input",{type:"color",value:toHex(c),title:"風扇 "+(i<8?1:2)+"・LED "+(i%8+1)});
-    p.oninput = () => { r.leds[i]=p.value.toUpperCase(); changed(); };
+    p.onchange = () => { r.leds[i]=p.value.toUpperCase(); changed(); };            // 關閉色盤才套用
     grid.append(p);
   });
   return el("div",{class:"sub"}, el("div",{class:"title"},"逐顆 LED 顏色（上排風扇 1、下排風扇 2）"), grid,
