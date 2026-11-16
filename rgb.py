@@ -506,9 +506,11 @@ class RgbEngine:
 
         elif eff == "audio_level":            # 音量越大亮越多顆，顏色依位置取漸層
             lv = self.audio.level if self.audio and self.audio._ok else 1.0
+            lit = int(round(max(0.0, min(1.0, lv)) * LEDS_PER_FAN))   # 亮幾顆：靜音 0 顆、滿音量 8 顆
             for j in range(n):
-                p = (j % LEDS_PER_FAN) / (LEDS_PER_FAN - 1)
-                out[j] = gradient(self.cfg["gradient"], p) if p <= lv + 1e-6 else (0, 0, 0)
+                i = j % LEDS_PER_FAN
+                p = i / (LEDS_PER_FAN - 1)                             # 顏色依位置取漸層
+                out[j] = gradient(self.cfg["gradient"], p) if i < lit else (0, 0, 0)
 
         bri = float(self.cfg.get("brightness", 100)) / 100.0
         return [scale(c, bri) for c in out]
